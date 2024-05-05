@@ -5,6 +5,7 @@ Revises:
 Create Date: 2024-03-10 16:20:47.766685
 
 """
+import datetime
 from typing import Sequence, Union
 
 from alembic import op
@@ -22,6 +23,7 @@ def upgrade() -> None:
     op.create_table('groups',
                     sa.Column('id', sa.Integer(), nullable=False),
                     sa.Column('name', sa.String(), nullable=False),
+                    sa.Column('simplify_debts', sa.Boolean(), nullable=False, default=False),
 
                     sa.PrimaryKeyConstraint('id'),
                     sa.UniqueConstraint('id')
@@ -39,15 +41,29 @@ def upgrade() -> None:
                     )
     op.create_table('expenses',
                     sa.Column('id', sa.Integer(), nullable=False),
-                    sa.Column('description', sa.String()),
+                    sa.Column('amount', sa.DECIMAL(), nullable=False),
+                    sa.Column('description', sa.String(), nullable=True),
                     sa.Column('group_id', sa.Integer(), nullable=True, index=True),
-                    sa.Column('data', sa.JSON(), nullable=False, default={}),
+                    sa.Column('payment', sa.Boolean(), nullable=False, default=False),
                     sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ),
 
                     sa.PrimaryKeyConstraint('id'),
                     sa.UniqueConstraint('id'),
                     )
-    op.create_table('expense_payers',
+    op.create_table('expense_users',
+                    sa.Column('id', sa.Integer(), nullable=False),
+                    sa.Column('user_id', sa.Integer(), nullable=True, index=True),
+                    sa.Column('lent_amount', sa.DECIMAL(), nullable=False),
+                    sa.Column('debt_amount', sa.DECIMAL(), nullable=False),
+                    sa.Column('expense_id', sa.Integer(), nullable=True, index=True),
+
+                    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+                    sa.ForeignKeyConstraint(['expense_id'], ['expenses.id'], ),
+
+                    sa.PrimaryKeyConstraint('id'),
+                    sa.UniqueConstraint('id'),
+                    )
+    op.create_table('expense_debtors',
                     sa.Column('id', sa.Integer(), nullable=False),
                     sa.Column('user_id', sa.Integer(), nullable=True, index=True),
                     sa.Column('amount', sa.DECIMAL(), nullable=False),
@@ -88,6 +104,8 @@ def upgrade() -> None:
                     sa.Column('currency', sa.String(), nullable=False),
                     sa.Column('amount', sa.DECIMAL(), nullable=False),
                     sa.Column('expense_id', sa.Integer(), nullable=True, index=True),
+                    sa.Column('settled', sa.Boolean(), nullable=True, default=False),
+                    sa.Column('created_at', sa.DateTime(), nullable=False),
 
                     sa.ForeignKeyConstraint(['expense_id'], ['expenses.id'], ),
                     sa.ForeignKeyConstraint(['debtor_id'], ['users.id'], ),
@@ -95,6 +113,17 @@ def upgrade() -> None:
                     sa.PrimaryKeyConstraint('id'),
                     sa.UniqueConstraint('id'),
                     )
+    op.create_table('feeds',
+                    sa.Column('id', sa.Integer(), nullable=False),
+                    sa.Column('user_id', sa.Integer(), nullable=False, index=True),
+                    sa.Column('type', sa.String(), nullable=False),
+                    sa.Column('message', sa.JSON(), nullable=False),
+
+                    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+                    sa.PrimaryKeyConstraint('id'),
+                    sa.UniqueConstraint('id'),
+                    )
+
     # ### end Alembic commands ###
 
 
@@ -104,7 +133,7 @@ def downgrade() -> None:
     op.drop_table('user_groups')
     op.drop_table('friends')
     op.drop_table('expenses')
-    op.drop_table('expense_payers')
+    op.drop_table('expense_users')
     op.drop_table('users')
     op.drop_table('groups')
     # ### end Alembic commands ###

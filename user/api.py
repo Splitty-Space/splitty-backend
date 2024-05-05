@@ -1,3 +1,4 @@
+import datetime
 import random
 from typing import Annotated
 import fastapi
@@ -7,6 +8,7 @@ from sqlalchemy import select, sql, func, case, or_
 from sqlalchemy.sql.functions import coalesce
 
 from app import orm
+from app.services.feed_service import FeedService
 from core.dtos import PaginationRequest
 from user.dtos import (
     AddFriend,
@@ -17,9 +19,14 @@ from user.dtos import (
     CreateExpense,
     FriendInfo,
     ExpenseShortInfo,
-    ExpenseInfo, TransactionInfo, EditExpense, GroupShortInfo, AddGroup, GroupInfo, EditGroup,
+    ExpenseInfo, TransactionInfo, EditExpense, GroupShortInfo, AddGroup, GroupInfo, EditGroup, ExpenseUserInfo,
+    FeedInfo,
 )
-from user.models import User, friends_association_table, Expense, Transaction, ExpensePayer, Group, user_group_table
+from user.models import User, friends_association_table, Expense, Transaction, Group, user_group_table, \
+    ExpenseUser
+from utils.calculate_user_balance import calculate_user_balances
+from utils.entities.UserBalance import UserBalance
+from utils.make_payment_graph import make_payment_graph
 
 router = fastapi.APIRouter()
 
@@ -30,14 +37,14 @@ def friends(user_id: int) -> list[FriendShortInfo]:
         total_borrowed_query = (
             transaction.query(Transaction.debtor_id, func.sum(Transaction.amount).label("total"))
             .select_from(Transaction)
-            .filter((Transaction.borrower_id == user_id))
+            .filter(Transaction.borrower_id == user_id, Transaction.settled == False)
             .group_by(Transaction.debtor_id)
             .subquery()
         )
         total_lent_query = (
             select(Transaction.borrower_id, func.sum(Transaction.amount).label("total"))
             .select_from(Transaction)
-            .filter((Transaction.debtor_id == user_id))
+            .filter(Transaction.debtor_id == user_id, Transaction.settled == False)
             .group_by(Transaction.borrower_id)
             .subquery()
         )
@@ -98,12 +105,14 @@ def friends(user_id: int, friend_id: int) -> FriendInfo:
 
         total_borrowed_query = (
             select(func.sum(Transaction.amount).label('amount'))
-            .filter((Transaction.borrower_id == user_id) & (Transaction.debtor_id == friend_id))
+            .filter((Transaction.borrower_id == user_id) & (Transaction.debtor_id == friend_id) & (
+                Transaction.settled.is_(False)))
             .alias("borrowed_transactions")
         )
         total_lent_query = (
             select(func.sum(Transaction.amount).label('amount'))
-            .filter((Transaction.debtor_id == user_id) & (Transaction.borrower_id == friend_id))
+            .filter((Transaction.debtor_id == user_id) & (Transaction.borrower_id == friend_id) & (
+                Transaction.settled.is_(False)))
             .alias("lent_transactions")
         )
         friend = transaction.query(User,
@@ -130,7 +139,9 @@ def friends(user_id: int, friend_id: int) -> FriendInfo:
             select(
                 Expense,
                 coalesce(total_borrowed_expense_query.c.total, 0),
-                coalesce(total_lent_expense_query.c.total, 0)
+                coalesce(total_lent_expense_query.c.total, 0),
+                ~Expense.transactions.any((Transaction.settled == False) & (
+                        (Transaction.debtor_id == user_id) | (Transaction.borrower_id == user_id)))
             )
             .select_from(Expense)
             .outerjoin(total_borrowed_expense_query, total_borrowed_expense_query.c.expense_id == Expense.id)
@@ -154,6 +165,8 @@ def friends(user_id: int, friend_id: int) -> FriendInfo:
                 ExpenseShortInfo(
                     id=expense[0].id,
                     description=expense[0].description,
+                    payment=expense[0].payment,
+                    settled=expense[3],
                     owes=round(expense[1], 2),
                     owe=round(expense[2], 2),
                 )
@@ -192,7 +205,7 @@ def search_user(
             UserInfo(
                 id=user.id,
                 username=user.username,
-                fullname=user.fullname,
+                name=user.fullname,
                 photo_url=user.photo_url,
             )
             for user in users
@@ -246,7 +259,7 @@ def search_friend(
             UserInfo(
                 id=user.id,
                 username=user.username,
-                fullname=user.fullname,
+                name=user.fullname,
                 photo_url=user.photo_url,
             )
             for user in users
@@ -305,7 +318,7 @@ def register_user(create_user: CreateUser):
         user = User(
             id=create_user.user_id,
             username=create_user.username,
-            fullname=create_user.name,
+            fullname=create_user.fullname,
             photo_url=create_user.photo_url,
         )
         transaction.add(user)
@@ -315,30 +328,93 @@ def register_user(create_user: CreateUser):
 @router.post("/expenses")
 def add_expense(create_expense: CreateExpense):
     with orm.Session.begin() as transaction:
-        expense = Expense(description=create_expense.description, data=create_expense.data, group_id=create_expense.group_id)
-        transaction.add(expense)
+        user = transaction.query(User).get(create_expense.user_id)
 
+        if not user:
+            raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
+        expense = Expense(
+            description=create_expense.description, group_id=create_expense.group_id,
+            amount=round(create_expense.amount, 2),
+            payment=create_expense.payment
+        )
+        transaction.add(expense)
+        payers_hash = {}
+        debtors_hash = {}
+        for payer in create_expense.payers:
+            payers_hash[payer.user_id] = payer.amount
+        for debtor in create_expense.debtors:
+            debtors_hash[debtor.user_id] = debtor.amount
+
+        created_at = datetime.datetime.utcnow()
+
+        payment_graph = make_payment_graph(
+            calculate_user_balances(create_expense.users, payers_hash, debtors_hash))
         transactions = [
             Transaction(
-                amount=round(transaction.amount, 2),
-                debtor_id=transaction.debtor_id,
-                borrower_id=transaction.borrower_id,
+                amount=round(abs(transaction.amount), 2),
+                debtor_id=transaction.to_user,
+                borrower_id=transaction.from_user,
                 expense=expense,
-                currency="USD"
-            ) for transaction in create_expense.transactions
+                currency="USD",
+                created_at=created_at
+            ) for transaction in payment_graph
         ]
         transaction.add_all(transactions)
 
-        expense_payers = [
-            ExpensePayer(
-                amount=payer.amount,
-                user_id=payer.user_id,
+        expense_users = [
+            ExpenseUser(
+                lent_amount=payers_hash[user_id],
+                debt_amount=debtors_hash[user_id],
+                user_id=user_id,
                 expense=expense,
-                currency="USD"
-            ) for payer in create_expense.expense_payers
+            ) for user_id in create_expense.users
         ]
-        transaction.add_all(expense_payers)
-        return True
+        transaction.add_all(expense_users)
+
+        for user_id in create_expense.users:
+            payment_node = next((node for node in payment_graph if node.from_user == user_id or node.to_user == user_id), None)
+            if payment_node:
+                if payment_node.from_user == user_id:
+                    transaction_type = "get_back"
+                else:
+                    transaction_type = "receive"
+                amount = round(float(payment_node.amount), 2)
+            else:
+                transaction_type = "nullify"
+                amount = 0
+            FeedService(
+                transaction, "expense_created",
+                {"description": create_expense.description, "created_by": {"id": user.id, "name": user.fullname},
+                 "amount": amount, "transaction_type": transaction_type},
+                user_id
+            ).call()
+
+        transaction.commit()
+
+    with orm.Session.begin() as transaction:
+        for user_id in create_expense.users:
+            total_borrowed_query = (
+                select(func.sum(Transaction.amount).label('amount'))
+                .filter(Transaction.borrower_id == user_id, Transaction.settled == False)
+                .alias("borrowed_transactions")
+            )
+            total_lent_query = (
+                select(func.sum(Transaction.amount).label('amount'))
+                .filter(Transaction.debtor_id == user_id, Transaction.settled == False)
+                .alias("lent_transactions")
+            )
+            user = transaction.query(User, coalesce(total_borrowed_query.c.amount, 0) - coalesce(
+                total_lent_query.c.amount, 0)).filter_by(id=user_id).first()
+            if float(user[1]) == 0:
+                transaction.query(Transaction).filter(Transaction.settled == False,
+                                                      (Transaction.borrower_id == user_id) | (
+                                                              Transaction.debtor_id == user_id)).update(
+                    {Transaction.settled: True})
+
+        transaction.commit()
+
+    return True
 
 
 @router.delete("/expenses/{expense_id}")
@@ -353,9 +429,24 @@ def delete_expense(expense_id: int):
         if not expense:
             raise fastapi.HTTPException(status_code=404, detail="Expense not found")
 
+        for expense_transaction in expense.transactions:
+            if expense_transaction.settled:
+                transaction.query(Transaction).filter(Transaction.id == expense_transaction.id).update(
+                    {
+                        Transaction.settled: False,
+                        Transaction.expense_id: None,
+                        Transaction.debtor_id: Transaction.borrower_id,
+                        Transaction.borrower_id: Transaction.debtor_id
+                    }
+                )
+            else:
+                transaction.delete(expense_transaction)
+        transaction.commit()
+
+    with orm.Session.begin() as transaction:
         transaction.delete(expense)
 
-        return True
+    return True
 
 
 @router.put("/expenses/{expense_id}")
@@ -365,7 +456,7 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
             transaction.query(Expense)
             .join(Transaction,
                   (Transaction.expense_id == Expense.id) & ((Transaction.borrower_id == edit_expense.user_id) | (
-                              Transaction.debtor_id == edit_expense.user_id))
+                          Transaction.debtor_id == edit_expense.user_id))
                   )
 
             .filter(Expense.id == expense_id)
@@ -375,42 +466,109 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
         if not expense:
             raise fastapi.HTTPException(status_code=404, detail="Expense not found")
 
+        group = (
+            transaction.query(Group)
+            .join(User.groups)
+            .filter(User.id == edit_expense.user_id, Group.id == edit_expense.group_id)
+            .first()
+        )
+
+        if edit_expense.group_id and not group:
+            raise fastapi.HTTPException(status_code=404, detail="Group not found")
+
         expense.description = edit_expense.description
-        expense.data = edit_expense.data
+        expense.amount = edit_expense.amount
+        expense.group = group
 
-        transaction.query(Transaction).filter(Transaction.expense_id == expense.id).delete()
-        transaction.query(ExpensePayer).filter(ExpensePayer.expense_id == expense.id).delete()
+        created_at = expense.transactions[0].created_at
+        transaction.query(Transaction). \
+            filter(
+            Transaction.created_at >= created_at,
+            Transaction.settled.is_(True),
+            or_(
+                Transaction.borrower_id.in_(edit_expense.users),
+                Transaction.debtor_id.in_(edit_expense.users)
+            )
+        ). \
+            update({Transaction.settled: False})
 
+        for expense_transaction in expense.transactions:
+            if expense_transaction.settled:
+                transaction.query(Transaction).filter(Transaction.id == expense_transaction.id).update(
+                    {
+                        Transaction.settled: False,
+                        Transaction.expense_id: None,
+                        Transaction.debtor_id: Transaction.borrower_id,
+                        Transaction.borrower_id: Transaction.debtor_id
+                    }
+                )
+            else:
+                transaction.delete(expense_transaction)
+
+        transaction.query(ExpenseUser).filter(ExpenseUser.expense_id == expense.id).delete()
+
+        payers_hash = {}
+        debtors_hash = {}
+        for payer in edit_expense.payers:
+            payers_hash[payer.user_id] = payer.amount
+        for debtor in edit_expense.debtors:
+            debtors_hash[debtor.user_id] = debtor.amount
+        payment_graph = make_payment_graph(calculate_user_balances(edit_expense.users, payers_hash, debtors_hash))
         transactions = [
             Transaction(
-                amount=round(transaction.amount, 2),
-                debtor_id=transaction.debtor_id,
-                borrower_id=transaction.borrower_id,
+                amount=round(abs(transaction.amount), 2),
+                debtor_id=transaction.to_user,
+                borrower_id=transaction.from_user,
                 expense=expense,
-                currency="USD"
-            ) for transaction in edit_expense.transactions
+                currency="USD",
+                created_at=created_at
+            ) for transaction in payment_graph
         ]
         transaction.add_all(transactions)
 
-        expense_payers = [
-            ExpensePayer(
-                amount=payer.amount,
-                user_id=payer.user_id,
+        expense_users = [
+            ExpenseUser(
+                lent_amount=payers_hash[user_id],
+                debt_amount=debtors_hash[user_id],
+                user_id=user_id,
                 expense=expense,
-                currency="USD"
-            ) for payer in edit_expense.expense_payers
+            ) for user_id in edit_expense.users
         ]
-        transaction.add_all(expense_payers)
-        return True
+        transaction.add_all(expense_users)
+
+        transaction.commit()
+
+    with orm.Session.begin() as transaction:
+        for user_id in edit_expense.users:
+            total_borrowed_query = (
+                select(func.sum(Transaction.amount).label('amount'))
+                .filter(Transaction.borrower_id == user_id, Transaction.settled.is_(False))
+                .alias("borrowed_transactions")
+            )
+            total_lent_query = (
+                select(func.sum(Transaction.amount).label('amount'))
+                .filter(Transaction.debtor_id == user_id, Transaction.settled.is_(False))
+                .alias("lent_transactions")
+            )
+            user = transaction.query(User, coalesce(total_borrowed_query.c.amount, 0) - coalesce(
+                total_lent_query.c.amount, 0)).filter_by(id=user_id).first()
+            if float(user[1]) == 0:
+                transaction.query(Transaction).filter(Transaction.settled == False,
+                                                      (Transaction.borrower_id == user_id) | (
+                                                              Transaction.debtor_id == user_id)).update(
+                    {Transaction.settled: True})
+
+        transaction.commit()
+    return True
 
 
 @router.get("/expenses/{expense_id}")
-def friends(user_id: int, expense_id: int) -> ExpenseInfo:
+def get_expense(user_id: int, expense_id: int) -> ExpenseInfo:
     with (orm.Session.begin() as transaction):
         total_borrowed_expense_query = (
             transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
             .select_from(Transaction)
-            .filter((Transaction.borrower_id == user_id))
+            .filter(Transaction.borrower_id == user_id, Transaction.settled == False)
             .group_by(Transaction.expense_id)
             .subquery()
         )
@@ -418,7 +576,7 @@ def friends(user_id: int, expense_id: int) -> ExpenseInfo:
             transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
             .select_from(Transaction)
             .group_by(Transaction.expense_id)
-            .filter((Transaction.debtor_id == user_id))
+            .filter(Transaction.debtor_id == user_id, Transaction.settled == False)
             .subquery()
         )
         expense_stmt = (
@@ -444,47 +602,43 @@ def friends(user_id: int, expense_id: int) -> ExpenseInfo:
         if not expense:
             raise fastapi.HTTPException(status_code=404, detail="Expense not found")
 
+        group = expense[0].group
+
         expense_info = ExpenseInfo(
             id=expense[0].id,
             description=expense[0].description,
-            data=expense[0].data,
+            amount=round(expense[0].amount, 2),
+            payment=expense[0].payment,
+            expense_users=[
+                ExpenseUserInfo(
+                    id=expense_user.id,
+                    user=UserInfo(
+                        id=expense_user.user.id,
+                        username=expense_user.user.username,
+                        name=expense_user.user.fullname,
+                        photo_url=expense_user.user.photo_url
+                    ),
+                    lent_amount=expense_user.lent_amount,
+                    debt_amount=expense_user.debt_amount,
+                )
+                for expense_user in expense[0].expense_users
+            ],
             transactions=[
                 TransactionInfo(
                     id=transaction.id,
                     debtor=UserInfo(id=transaction.debtor.id, username=transaction.debtor.username,
-                                    fullname=transaction.debtor.fullname, photo_url=transaction.debtor.photo_url),
+                                    name=transaction.debtor.fullname, photo_url=transaction.debtor.photo_url),
                     borrower=UserInfo(id=transaction.borrower.id, username=transaction.borrower.username,
-                                      fullname=transaction.borrower.fullname, photo_url=transaction.borrower.photo_url),
+                                      name=transaction.borrower.fullname, photo_url=transaction.borrower.photo_url),
                     amount=round(transaction.amount, 2),
                 )
                 for transaction in expense[0].transactions
             ],
             owes=round(expense[1], 2),
             owe=round(expense[2], 2),
-        )
-        return expense_info
-
-
-@router.get("/groups")
-def friends(user_id: int) -> list[GroupShortInfo]:
-    with orm.Session.begin() as transaction:
-        stmt = (
-            select(
-                Group,
-            )
-            .select_from(Group)
-            .join(
-                user_group_table,
-                user_group_table.c.user_id == user_id,
-            ).group_by(Group.id)
-        )
-
-        groups = transaction.execute(stmt).fetchall()
-
-        return [
-            GroupShortInfo(
-                id=group[0].id,
-                name=group[0].name,
+            group=GroupShortInfo(
+                id=group.id,
+                name=group.name,
                 owe=0,
                 owes=0,
                 users=[FriendShortInfo(
@@ -494,14 +648,41 @@ def friends(user_id: int) -> list[GroupShortInfo]:
                     photo_url=member.photo_url,
                     amount=None
                 )
-                    for member in group[0].users]
+                    for member in group.users]
+            ) if group else None
+        )
+        return expense_info
+
+
+@router.get("/groups")
+def groups(user_id: int) -> list[GroupShortInfo]:
+    with orm.Session.begin() as transaction:
+        user = transaction.query(User).get(user_id)
+
+        if not user:
+            raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
+        return [
+            GroupShortInfo(
+                id=group.id,
+                name=group.name,
+                owe=0,
+                owes=0,
+                users=[FriendShortInfo(
+                    id=member.id,
+                    username=member.username,
+                    name=member.fullname,
+                    photo_url=member.photo_url,
+                    amount=None
+                )
+                    for member in group.users]
             )
-            for group in groups
+            for group in user.groups
         ]
 
 
 @router.post("/groups")
-def friends(add_group: AddGroup):
+def create_group(add_group: AddGroup):
     with orm.Session.begin() as transaction:
         user = transaction.query(User).filter_by(id=add_group.user_id).first()
 
@@ -515,92 +696,179 @@ def friends(add_group: AddGroup):
 
 
 @router.get("/groups/{group_id}")
-def friends(user_id: int, group_id: int) -> GroupInfo:
+def get_group(user_id: int, group_id: int) -> GroupInfo:
     with (orm.Session.begin() as transaction):
-        stmt = (
-            select(
-                Group,
-            )
-            .select_from(Group)
-            .join(
-                user_group_table,
-                user_group_table.c.group_id == group_id,
-            )
-            .filter(user_group_table.c.user_id == user_id)
+        group = (
+            transaction.query(Group)
+            .join(User.groups)
+            .filter(User.id == user_id, Group.id == group_id)
+            .first()
         )
-
-        group = transaction.execute(stmt).fetchone()
 
         if not group:
             raise fastapi.HTTPException(status_code=404, detail="Group not found")
 
-        total_borrowed_query = (
-            transaction.query(Transaction.debtor_id, func.sum(Transaction.amount).label("total"))
+        total_borrowed_expense_query = (
+            transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
             .select_from(Transaction)
-            .filter((Transaction.borrower_id == user_id))
-            .group_by(Transaction.debtor_id)
+            .filter(Transaction.borrower_id == user_id)
+            .group_by(Transaction.expense_id)
             .subquery()
         )
-        total_lent_query = (
-            select(Transaction.borrower_id, func.sum(Transaction.amount).label("total"))
+        total_lent_expense_query = (
+            transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
             .select_from(Transaction)
-            .filter((Transaction.debtor_id == user_id))
-            .group_by(Transaction.borrower_id)
+            .group_by(Transaction.expense_id)
+            .filter(Transaction.debtor_id == user_id)
             .subquery()
         )
+
+        expenses_stmt = (
+            select(
+                Expense,
+                coalesce(total_borrowed_expense_query.c.total, 0),
+                coalesce(total_lent_expense_query.c.total, 0),
+                ~Expense.transactions.any((Transaction.settled == False) & (
+                        (Transaction.debtor_id == user_id) | (Transaction.borrower_id == user_id)))
+            )
+            .select_from(Expense)
+            .outerjoin(total_borrowed_expense_query, total_borrowed_expense_query.c.expense_id == Expense.id)
+            .outerjoin(total_lent_expense_query, total_lent_expense_query.c.expense_id == Expense.id)
+            .join(Transaction,
+                  (Transaction.expense_id == Expense.id) & (
+                          (Transaction.debtor_id == user_id) |
+                          (Transaction.borrower_id == user_id)))
+            .group_by(Expense.id)
+            .order_by(Expense.id.desc())
+            .filter(Expense.group_id == group_id)
+        )
+        expenses = transaction.execute(expenses_stmt).fetchall()
+
         stmt = (
             select(
                 User,
-                coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)
             )
-            .options(
-                load_only(
-                    User.id,
-                    User.username,
-                    User.fullname,
-                    User.photo_url,
-                )
-            )
-            .outerjoin(total_borrowed_query, total_borrowed_query.c.debtor_id == User.id)
-            .outerjoin(total_lent_query, total_lent_query.c.borrower_id == User.id)
             .join(
                 user_group_table,
                 (user_group_table.c.user_id == User.id) & (user_group_table.c.group_id == group_id),
             )
             .group_by(User.id)
-            .filter(friends_association_table.c.user_id == user_id)
-            .order_by(User.id.desc())
         )
 
         members = transaction.execute(stmt).fetchall()
 
+        if group.simplify_debts:
+            total_borrowed_query = (
+                transaction.query(Transaction.debtor_id, func.sum(Transaction.amount).label("total"))
+                .select_from(Transaction)
+                .join(Expense)
+                .filter(Expense.group_id == group_id, Transaction.settled == False)
+                .group_by(Transaction.debtor_id)
+                .subquery()
+            )
+            total_lent_query = (
+                select(Transaction.borrower_id, func.sum(Transaction.amount).label("total"))
+                .select_from(Transaction)
+                .join(Expense)
+                .filter(Expense.group_id == group_id, Transaction.settled == False)
+                .group_by(Transaction.borrower_id)
+                .subquery()
+            )
+
+            users_stmt = (
+                select(
+                    User,
+                    coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)
+                )
+                .join(User.groups)
+                .outerjoin(total_borrowed_query, total_borrowed_query.c.debtor_id == User.id)
+                .outerjoin(total_lent_query, total_lent_query.c.borrower_id == User.id)
+                .group_by(User.id)
+                .filter(Group.id == group_id)
+            )
+
+            users = transaction.execute(users_stmt).fetchall()
+
+            payment_graph = make_payment_graph([UserBalance(user_id=user[0], final_balance=user[1]) for user in users])
+
+            total = [
+                TransactionInfo(
+                    id=0,
+                    debtor=UserInfo(id=transaction.to_user.id, username=transaction.to_user.username,
+                                    name=transaction.to_user.fullname, photo_url=transaction.to_user.photo_url),
+                    borrower=UserInfo(id=transaction.from_user.id, username=transaction.from_user.username,
+                                      name=transaction.from_user.fullname,
+                                      photo_url=transaction.from_user.photo_url),
+                    amount=round(transaction.amount, 2),
+                )
+                for transaction in payment_graph
+            ]
+        else:
+            transactions_smtp = (
+                select(Transaction, Transaction.borrower_id, Transaction.debtor_id, func.sum(Transaction.amount))
+                .select_from(Transaction)
+                .join(Expense)
+                .filter(Expense.group_id == group_id, Transaction.settled == False,
+                        (Transaction.debtor_id == user_id) | (Transaction.borrower_id == user_id))
+                .group_by(Transaction.borrower_id, Transaction.debtor_id)
+            )
+
+            transactions = transaction.execute(transactions_smtp).fetchall()
+
+            total = [
+                TransactionInfo(
+                    id=0,
+                    debtor=UserInfo(id=transaction[0].debtor.id, username=transaction[0].debtor.username,
+                                    name=transaction[0].debtor.fullname, photo_url=transaction[0].debtor.photo_url),
+                    borrower=UserInfo(id=transaction[0].borrower.id, username=transaction[0].borrower.username,
+                                      name=transaction[0].borrower.fullname,
+                                      photo_url=transaction[0].borrower.photo_url),
+                    amount=round(transaction[3], 2),
+                )
+                for transaction in transactions
+            ]
         return GroupInfo(
-            id=group[0].id,
-            name=group[0].name,
+            id=group.id,
+            name=group.name,
             amount=0,
+            simplify_debts=group.simplify_debts,
+            expenses=[
+                ExpenseShortInfo(
+                    id=expense[0].id,
+                    description=expense[0].description,
+                    payment=expense[0].payment,
+                    settled=expense[3],
+                    owes=round(expense[1], 2),
+                    owe=round(expense[2], 2),
+                )
+                for expense in expenses
+            ],
             members=[
                 FriendShortInfo(
                     id=member[0].id,
                     username=member[0].username,
                     name=member[0].fullname,
                     photo_url=member[0].photo_url,
-                    amount=round(member[1], 2)
                 )
                 for member in members
-            ]
+            ],
+            total=total
         )
 
 
 @router.put("/groups/{group_id}")
-def friends(group_id: int, edit_group: EditGroup):
-    with (orm.Session.begin() as transaction):
+def edit_group(group_id: int, edit_group: EditGroup):
+    with orm.Session.begin() as transaction:
         group = (
             transaction.query(Group)
             .join(
                 user_group_table,
-                user_group_table.c.group_id == group_id,
+                user_group_table.c.group_id == Group.id,  # Assuming Group.id is the primary key of the Group table
             )
-            .filter(user_group_table.c.user_id == edit_group.user_id)
+            .filter(
+                user_group_table.c.group_id == group_id,
+                user_group_table.c.user_id == edit_group.user_id
+            )
             .first()
         )
 
@@ -608,6 +876,7 @@ def friends(group_id: int, edit_group: EditGroup):
             raise fastapi.HTTPException(status_code=404, detail="Group not found")
 
         group.name = edit_group.name
+        group.simplify_debts = edit_group.simplify_debts
 
         params_members = edit_group.members if edit_group.members is not None else []
         params_members.append(edit_group.user_id)
@@ -622,4 +891,56 @@ def friends(group_id: int, edit_group: EditGroup):
         transaction.query(user_group_table).filter(~user_group_table.c.user_id.in_(params_members),
                                                    user_group_table.c.group_id == group_id).delete()
 
+        transaction.add(group)
+        transaction.add_all(members)
+        transaction.commit()
+        return True
+
+
+@router.get("/me")
+def get_me(user_id: int) -> FriendShortInfo:
+    with orm.Session.begin() as transaction:
+        user = transaction.query(User).get(user_id)
+
+        if not user:
+            raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
+        return FriendShortInfo(
+            id=user.id,
+            username=user.username,
+            name=user.fullname,
+            photo_url=user.photo_url
+        )
+
+
+@router.get("/feeds")
+def feeds(user_id: int) -> list[FeedInfo]:
+    with orm.Session.begin() as transaction:
+        user = transaction.query(User).get(user_id)
+
+        if not user:
+            raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
+        return [
+            FeedInfo(
+                id=feed.id,
+                type=feed.type,
+                message=feed.message,
+            )
+            for feed in user.feeds
+        ]
+
+@router.delete("/groups/{group_id}")
+def delete_group(group_id: int):
+    with orm.Session.begin() as transaction:
+        group = (
+            transaction.query(Group)
+            .filter(Group.id == group_id)
+            .first()
+        )
+
+        if not group:
+            raise fastapi.HTTPException(status_code=404, detail="Group not found")
+
+        transaction.delete(group)
         return True
