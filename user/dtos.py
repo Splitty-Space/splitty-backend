@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 from core.dtos import PaginationResponse
 from decimal import Decimal
@@ -66,6 +66,11 @@ class FriendShortInfo:
     amount: Optional[Decimal] = None
     type: Optional[str] = "user"
 
+
+@dataclass
+class FriendsResponse:
+    data: List[FriendShortInfo]
+    meta: dict
 
 @dataclass
 class TransactionInfo:

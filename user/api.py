@@ -16,7 +16,7 @@ from user.dtos import (
     UserInfo,
     FriendInfo,
     ExpenseShortInfo,
-    FeedInfo, TransactionInfo,
+    FeedInfo, FriendsResponse,
 )
 from user.models import User, friends_association_table, Expense, Transaction
 
@@ -24,22 +24,23 @@ router = fastapi.APIRouter()
 
 
 @router.get("/friends")
-def friends(user_id: int) -> list[FriendShortInfo]:
+def friends(user_id: int) -> FriendsResponse:
     with orm.Session.begin() as transaction:
         total_borrowed_query = (
             transaction.query(Transaction.debtor_id, func.sum(Transaction.amount).label("total"))
             .select_from(Transaction)
             .filter(Transaction.borrower_id == user_id, Transaction.settled.is_(False))
-            .group_by(Transaction.debtor_id)
+            .group_by(Transaction.debtor_id, Transaction.currency)
             .subquery()
         )
         total_lent_query = (
             select(Transaction.borrower_id, func.sum(Transaction.amount).label("total"))
             .select_from(Transaction)
             .filter(Transaction.debtor_id == user_id, Transaction.settled.is_(False))
-            .group_by(Transaction.borrower_id)
+            .group_by(Transaction.borrower_id, Transaction.currency)
             .subquery()
         )
+
         stmt = (
             select(
                 User,
@@ -66,16 +67,17 @@ def friends(user_id: int) -> list[FriendShortInfo]:
 
         friends = transaction.execute(stmt).fetchall()
 
-        return [
-            FriendShortInfo(
+        return FriendsResponse(
+            data=[FriendShortInfo(
                 id=friend[0].id,
                 username=friend[0].username,
                 name=friend[0].fullname,
                 photo_url=friend[0].photo_url,
                 amount=round(friend[1], 2)
             )
-            for friend in friends
-        ]
+            for friend in friends],
+            meta={}
+        )
 
 
 @router.get("/friends/{friend_id}")
