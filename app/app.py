@@ -3,12 +3,15 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
 from user import api as user_api
-
+from user.routers import groups as group_api
+from user.routers import expenses as expense_api
 from config import SERVER_PORT
 
 
 app = FastAPI()
 app.include_router(user_api.router)
+app.include_router(group_api.router)
+app.include_router(expense_api.router)
 
 origins = [
     "*",

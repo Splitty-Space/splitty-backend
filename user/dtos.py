@@ -68,21 +68,22 @@ class FriendShortInfo:
 
 
 @dataclass
+class TransactionInfo:
+    id: int
+    borrower: UserInfo
+    debtor: UserInfo
+    amount: Decimal
+
+
+@dataclass
 class ExpenseShortInfo:
     id: int
     owe: Decimal
     owes: Decimal
     settled: bool
     payment: bool
+    first_transaction: Optional[TransactionInfo] = None
     description: Optional[str] = None
-
-
-@dataclass
-class TransactionInfo:
-    id: int
-    borrower: UserInfo
-    debtor: UserInfo
-    amount: Decimal
 
 
 @dataclass
@@ -100,6 +101,7 @@ class GroupInfo:
     amount: Decimal
     simplify_debts: bool
     expenses: list[ExpenseShortInfo]
+    expenses: list[ExpenseShortInfo]
     members: list[FriendShortInfo]
     total: list[TransactionInfo]
 
@@ -107,12 +109,11 @@ class GroupInfo:
 @dataclass
 class GroupShortInfo:
     id: int
-    owe: Decimal
-    owes: Decimal
     name: str
     users: list[FriendShortInfo]
     type: Optional[str] = "group"
-
+    owe: Optional[Decimal] = None
+    owes: Optional[Decimal] = None
 
 @dataclass
 class ExpenseInfo:

@@ -140,7 +140,8 @@ class Expense(Base):
     )
     transactions: orm.Mapped[list["Transaction"]] = orm.relationship(
         back_populates="expense",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        lazy='subquery'
     )
     group: orm.Mapped["Group"] = orm.relationship(back_populates="expenses")
 
