@@ -1,23 +1,27 @@
 import fastapi
 from fastapi import status
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case, asc, text
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import coalesce
 
 from app import orm
+from app.query.group_total_calculator import GroupTotalCalculator
+from app.query.total_calculator import TotalCalculator
 from app.services.build_transaction_info import BuildTransactionInfo
 from user.dtos import (
     FriendShortInfo,
     UserInfo,
     ExpenseShortInfo,
-    TransactionInfo, GroupShortInfo, AddGroup, GroupInfo, EditGroup, )
+    TransactionInfo, GroupShortInfo, AddGroup, GroupInfo, EditGroup, GroupUserInfo, DebtInfo, GroupResponse, )
 from user.models import User, Expense, Transaction, Group, user_group_table
 from utils.entities.UserBalance import UserBalance
 from utils.make_payment_graph import make_payment_graph
 
 router = fastapi.APIRouter()
 
+
 @router.get("/groups")
-def groups(user_id: int) -> list[GroupShortInfo]:
+def groups(user_id: int) -> GroupResponse:
     with orm.Session.begin() as transaction:
         user = transaction.query(User).get(user_id)
 
@@ -26,49 +30,82 @@ def groups(user_id: int) -> list[GroupShortInfo]:
 
         total_borrowed_query = (
             transaction.query(Expense.group_id, func.sum(Transaction.amount).label("total"))
-            .select_from(Transaction)
-            .join(Expense)
+            .join(Expense, Expense.id == Transaction.expense_id)
             .filter(Transaction.borrower_id == user_id, Transaction.settled.is_(False))
             .group_by(Expense.group_id)
             .subquery()
         )
+
         total_lent_query = (
-            select(Expense.group_id, func.sum(Transaction.amount).label("total"))
-            .select_from(Transaction)
-            .join(Expense)
+            transaction.query(Expense.group_id, func.sum(Transaction.amount).label("total"))
+            .join(Expense, Expense.id == Transaction.expense_id)
             .filter(Transaction.debtor_id == user_id, Transaction.settled.is_(False))
             .group_by(Expense.group_id)
             .subquery()
         )
 
-        stmt = (
-            select(Group, coalesce(total_borrowed_query.c.total, 0), coalesce(total_lent_query.c.total, 0))
-            .join(User.groups)
+        # Create the CTE (Common Table Expression) for the amounts
+        amount_cte = (
+            select(
+                Group.id.label('group_id'),
+                (func.coalesce(total_borrowed_query.c.total, 0) - func.coalesce(total_lent_query.c.total, 0)).label(
+                    "amount")
+            )
+            .select_from(Group)
             .outerjoin(total_borrowed_query, total_borrowed_query.c.group_id == Group.id)
             .outerjoin(total_lent_query, total_lent_query.c.group_id == Group.id)
+            .cte("amount_cte")
+        )
+
+        # Create the main statement with priority case and joins
+        stmt = (
+            select(
+                Group,
+                amount_cte.c.amount,
+                case(
+                    (amount_cte.c.amount < 0, 1),
+                    (amount_cte.c.amount > 0, 2),
+                    else_=3
+                ).label("priority")
+            )
+            .select_from(Group)
+            .join(amount_cte, amount_cte.c.group_id == Group.id)
+            .join(user_group_table, user_group_table.c.group_id == Group.id)
+            .join(User, User.id == user_group_table.c.user_id)
             .filter(User.id == user_id)
-            .group_by(Group.id)
+            .order_by(asc("priority"), asc(amount_cte.c.amount))
         )
 
         groups = transaction.execute(stmt).fetchall()
 
-        return [
+        return GroupResponse(data=[
             GroupShortInfo(
                 id=group[0].id,
                 name=group[0].name,
+                kind=group[0].kind,
                 owes=round(group[1], 2),
                 owe=round(group[2], 2),
-                users=[FriendShortInfo(
+                total=[
+                    DebtInfo(
+                        currency=debt[0],
+                        amount=debt[1]
+                    )
+                    for debt in GroupTotalCalculator(transaction, user_id, group[0].id).call() if debt[1] != 0
+                ],
+                users=[GroupUserInfo(
                     id=member.id,
                     username=member.username,
                     name=member.fullname,
-                    photo_url=member.photo_url,
-                    amount=None
                 )
                     for member in group[0].users]
             )
             for group in groups
-        ]
+        ],
+            meta={
+                'total': TotalCalculator(transaction, user_id).call(),
+                'default_currency': user.default_currency
+            }
+        )
 
 
 @router.post("/groups")
@@ -79,7 +116,7 @@ def create_group(add_group: AddGroup):
         if not user:
             raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
 
-        group = Group(name=add_group.name)
+        group = Group(name=add_group.name, kind=add_group.kind)
         user.groups.append(group)
 
         return True
@@ -182,10 +219,10 @@ def get_group(user_id: int, group_id: int) -> GroupInfo:
                 TransactionInfo(
                     id=0,
                     borrower=UserInfo(id=transaction.to_user.id, username=transaction.to_user.username,
-                                    name=transaction.to_user.fullname, photo_url=transaction.to_user.photo_url),
+                                      name=transaction.to_user.fullname, photo_url=transaction.to_user.photo_url),
                     debtor=UserInfo(id=transaction.from_user.id, username=transaction.from_user.username,
-                                      name=transaction.from_user.fullname,
-                                      photo_url=transaction.from_user.photo_url),
+                                    name=transaction.from_user.fullname,
+                                    photo_url=transaction.from_user.photo_url),
                     amount=round(transaction.amount, 2),
                 )
                 for transaction in payment_graph
@@ -206,10 +243,10 @@ def get_group(user_id: int, group_id: int) -> GroupInfo:
                 TransactionInfo(
                     id=0,
                     borrower=UserInfo(id=transaction[0].debtor.id, username=transaction[0].debtor.username,
-                                    name=transaction[0].debtor.fullname, photo_url=transaction[0].debtor.photo_url),
+                                      name=transaction[0].debtor.fullname, photo_url=transaction[0].debtor.photo_url),
                     debtor=UserInfo(id=transaction[0].borrower.id, username=transaction[0].borrower.username,
-                                      name=transaction[0].borrower.fullname,
-                                      photo_url=transaction[0].borrower.photo_url),
+                                    name=transaction[0].borrower.fullname,
+                                    photo_url=transaction[0].borrower.photo_url),
                     amount=round(transaction[3], 2),
                 )
                 for transaction in transactions
@@ -227,7 +264,8 @@ def get_group(user_id: int, group_id: int) -> GroupInfo:
                     settled=expense[3],
                     owes=round(expense[1], 2),
                     owe=round(expense[2], 2),
-                    first_transaction=BuildTransactionInfo(expense[0].transactions[0]).call() if expense[0].payment else None
+                    first_transaction=BuildTransactionInfo(expense[0].transactions[0]).call() if expense[
+                        0].payment else None
                 )
                 for expense in expenses
             ],
@@ -283,6 +321,7 @@ def edit_group(group_id: int, edit_group: EditGroup):
         transaction.add_all(members)
         transaction.commit()
         return True
+
 
 @router.delete("/groups/{group_id}")
 def delete_group(group_id: int):

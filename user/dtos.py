@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from core.dtos import PaginationResponse
 from decimal import Decimal
@@ -33,6 +33,7 @@ class CreateExpense:
     user_id: int
     amount: Decimal
     payment: bool
+    currency: str
     description: Optional[str] = None
     group_id: Optional[int] = None
 
@@ -58,6 +59,12 @@ class UserInfo:
 
 
 @dataclass
+class DebtInfo:
+    currency: str
+    amount: Decimal
+
+
+@dataclass
 class FriendShortInfo:
     id: int
     username: str
@@ -65,12 +72,32 @@ class FriendShortInfo:
     photo_url: str
     amount: Optional[Decimal] = None
     type: Optional[str] = "user"
+    total: Optional[List[DebtInfo]] = tuple()
+
+
+@dataclass
+class UserInfo:
+    id: int
+    username: str
+    name: str
+    photo_url: str
+    default_currency: Optional[str] = None
+    language: Optional[str] = None
+
+
+@dataclass
+class GroupUserInfo:
+    id: int
+    username: str
+    name: str
+    type: Optional[str] = "user"
 
 
 @dataclass
 class FriendsResponse:
     data: List[FriendShortInfo]
     meta: dict
+
 
 @dataclass
 class TransactionInfo:
@@ -115,10 +142,19 @@ class GroupInfo:
 class GroupShortInfo:
     id: int
     name: str
-    users: list[FriendShortInfo]
+    users: List[Union['FriendShortInfo', 'GroupUserInfo']]
     type: Optional[str] = "group"
     owe: Optional[Decimal] = None
     owes: Optional[Decimal] = None
+    total: Optional[List[DebtInfo]] = tuple()
+    kind: Optional[str] = None
+
+
+@dataclass
+class GroupResponse:
+    data: List[GroupShortInfo]
+    meta: dict
+
 
 @dataclass
 class ExpenseInfo:
@@ -160,9 +196,17 @@ class AddFriend:
 
 
 @dataclass
+class UpdateSettings:
+    user_id: int
+    default_currency: Optional[str] = None
+    language: Optional[str] = None
+
+
+@dataclass
 class AddGroup:
     user_id: int
     name: str
+    kind: Optional[str] = None
 
 
 @dataclass
@@ -172,8 +216,23 @@ class EditGroup:
     name: str
     simplify_debts: bool
 
+
 @dataclass
 class FeedInfo:
     id: int
     type: str
+    created_at: str
     message: dict
+
+
+@dataclass
+class FeedResponse:
+    data: List[FeedInfo]
+    meta: dict
+
+
+@dataclass
+class Index:
+    user_id: int
+    page: int
+    limit: int

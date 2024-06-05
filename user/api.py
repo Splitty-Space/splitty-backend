@@ -2,11 +2,13 @@ from typing import Annotated
 
 import fastapi
 from fastapi import Query, status
-from sqlalchemy import select, sql, func
+from sqlalchemy import select, sql, func, desc, asc, case
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.functions import coalesce
 
 from app import orm
+from app.query.friend_total_calculator import FriendTotalCalculator
+from app.query.total_calculator import TotalCalculator
 from app.services.build_transaction_info import BuildTransactionInfo
 from user.dtos import (
     AddFriend,
@@ -16,9 +18,9 @@ from user.dtos import (
     UserInfo,
     FriendInfo,
     ExpenseShortInfo,
-    FeedInfo, FriendsResponse,
+    FeedInfo, FriendsResponse, DebtInfo, FeedResponse, Index,
 )
-from user.models import User, friends_association_table, Expense, Transaction
+from user.models import User, friends_association_table, Expense, Transaction, Feed
 
 router = fastapi.APIRouter()
 
@@ -26,26 +28,47 @@ router = fastapi.APIRouter()
 @router.get("/friends")
 def friends(user_id: int) -> FriendsResponse:
     with orm.Session.begin() as transaction:
+        user = transaction.query(User).get(user_id)
+
+        if not user:
+            raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
         total_borrowed_query = (
             transaction.query(Transaction.debtor_id, func.sum(Transaction.amount).label("total"))
             .select_from(Transaction)
             .filter(Transaction.borrower_id == user_id, Transaction.settled.is_(False))
-            .group_by(Transaction.debtor_id, Transaction.currency)
+            .group_by(Transaction.debtor_id)
             .subquery()
         )
         total_lent_query = (
             select(Transaction.borrower_id, func.sum(Transaction.amount).label("total"))
             .select_from(Transaction)
             .filter(Transaction.debtor_id == user_id, Transaction.settled.is_(False))
-            .group_by(Transaction.borrower_id, Transaction.currency)
+            .group_by(Transaction.borrower_id)
             .subquery()
+        )
+
+        amount_cte = (
+            select(
+                User.id.label('user_id'),
+                (coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)).label("amount")
+            )
+            .outerjoin(total_borrowed_query, total_borrowed_query.c.debtor_id == User.id)
+            .outerjoin(total_lent_query, total_lent_query.c.borrower_id == User.id)
+            .cte("amount_cte")
         )
 
         stmt = (
             select(
                 User,
-                coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)
+                amount_cte.c.amount,
+                case(
+                    (amount_cte.c.amount < 0, 1),
+                    (amount_cte.c.amount > 0, 2),
+                    else_=3
+                ).label("priority")
             )
+            .join(amount_cte, amount_cte.c.user_id == User.id)
             .options(
                 load_only(
                     User.id,
@@ -54,15 +77,13 @@ def friends(user_id: int) -> FriendsResponse:
                     User.photo_url,
                 )
             )
-            .outerjoin(total_borrowed_query, total_borrowed_query.c.debtor_id == User.id)
-            .outerjoin(total_lent_query, total_lent_query.c.borrower_id == User.id)
             .join(
                 friends_association_table,
                 friends_association_table.c.friend_id == User.id,
             )
             .group_by(User.id)
             .filter(friends_association_table.c.user_id == user_id)
-            .order_by(User.id.desc())
+            .order_by(asc("priority"), asc(amount_cte.c.amount))
         )
 
         friends = transaction.execute(stmt).fetchall()
@@ -73,10 +94,17 @@ def friends(user_id: int) -> FriendsResponse:
                 username=friend[0].username,
                 name=friend[0].fullname,
                 photo_url=friend[0].photo_url,
-                amount=round(friend[1], 2)
+                amount=round(friend[1], 2),
+                total=[
+                    DebtInfo(
+                        currency=debt[0],
+                        amount=debt[1]
+                    )
+                    for debt in FriendTotalCalculator(transaction, user_id, friend[0].id).call() if debt[1] != 0
+                ]
             )
             for friend in friends],
-            meta={}
+            meta={'total': TotalCalculator(transaction, user_id).call(), 'default_currency': user.default_currency}
         )
 
 
@@ -315,40 +343,27 @@ def register_user(create_user: CreateUser):
             username=create_user.username,
             fullname=create_user.fullname,
             photo_url=create_user.photo_url,
+            default_currency="USD",
+            language="en",
         )
         transaction.add(user)
         return True
 
-
-@router.get("/me")
-def get_me(user_id: int) -> FriendShortInfo:
-    with orm.Session.begin() as transaction:
-        user = transaction.query(User).get(user_id)
-
-        if not user:
-            raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-
-        return FriendShortInfo(
-            id=user.id,
-            username=user.username,
-            name=user.fullname,
-            photo_url=user.photo_url
-        )
-
-
 @router.get("/feeds")
-def feeds(user_id: int) -> list[FeedInfo]:
+def feeds(user_id: int, page: int, limit: int) -> FeedResponse:
     with orm.Session.begin() as transaction:
-        user = transaction.query(User).get(user_id)
+        feeds = transaction.query(Feed).order_by(Feed.id.asc()).filter(Feed.user_id == user_id).offset((page - 1) * limit).limit(limit+1).all()
+        has_more = len(feeds) == limit + 1
+        feeds = feeds[:-1] if has_more else feeds
 
-        if not user:
-            raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-
-        return [
-            FeedInfo(
+        feed_infos = []
+        unique_years = set()
+        for feed in feeds:
+            feed_infos.append(FeedInfo(
                 id=feed.id,
                 type=feed.type,
                 message=feed.message,
-            )
-            for feed in user.feeds
-        ]
+                created_at=feed.created_at,
+            ))
+            unique_years.add(feed.created_at.year)
+        return FeedResponse(data=feed_infos,meta={'has_more': has_more, 'years': unique_years})

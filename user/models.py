@@ -5,21 +5,22 @@ from sqlalchemy.orm import mapper
 
 from app.orm import Base
 
-
 user_group_table = Table(
     "user_groups",
     Base.metadata,
     Column("user_id", ForeignKey("users.id"), primary_key=True),
     Column("group_id", ForeignKey("groups.id"), primary_key=True),
+    Column("created_at", types.DateTime, default=datetime.datetime.utcnow),
 )
-
 
 friends_association_table = Table(
     "friends",
     Base.metadata,
     Column("user_id", types.Integer, ForeignKey("users.id")),
     Column("friend_id", types.Integer, ForeignKey("users.id")),
+    Column("created_at", types.DateTime, default=datetime.datetime.utcnow),
 )
+
 
 class User(Base):
     __tablename__ = "users"
@@ -27,7 +28,10 @@ class User(Base):
     id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True, unique=True)
     fullname: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=False)
     username: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=True)
+    default_currency: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
+    language: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
     photo_url: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=True)
+    created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
 
     is_admin: orm.Mapped[bool] = orm.mapped_column(types.Boolean, default=sql.false())
 
@@ -40,7 +44,6 @@ class User(Base):
     feeds: orm.Mapped[list["Feed"]] = orm.relationship(
         "Feed", back_populates="user"
     )
-
 
     friends: orm.Mapped[list["User"]] = orm.relationship(
         "User",
@@ -66,7 +69,9 @@ class Group(Base):
 
     id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
     name: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=False)
+    kind: orm.Mapped[str] = orm.mapped_column(types.String)
     simplify_debts: orm.Mapped[bool] = orm.mapped_column(types.Boolean, nullable=False, default=False)
+    created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
 
     users: orm.Mapped[list["User"]] = orm.relationship(
         secondary=user_group_table, back_populates="groups"
@@ -111,7 +116,6 @@ class Transaction(Base):
     settled: orm.Mapped[bool] = orm.mapped_column(types.Boolean, default=False)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
 
-    currency: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
     amount: orm.Mapped[float] = orm.mapped_column(types.DECIMAL, nullable=False)
 
     expense: orm.Mapped["Expense"] = orm.relationship(back_populates="transactions")
@@ -133,6 +137,8 @@ class Expense(Base):
         types.Integer, schema.ForeignKey("groups.id"), nullable=True
     )
     amount: orm.Mapped[float] = orm.mapped_column(types.DECIMAL, nullable=False)
+    currency: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
+    created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
 
     expense_users: orm.Mapped[list["ExpenseUser"]] = orm.relationship(
         back_populates="expense",
@@ -153,6 +159,7 @@ class Feed(Base):
     user_id: orm.Mapped[int] = orm.mapped_column(
         types.Integer, schema.ForeignKey("users.id"), nullable=False
     )
+    created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
 
     message: orm.Mapped[dict] = orm.mapped_column(types.JSON, nullable=False)
     type: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)

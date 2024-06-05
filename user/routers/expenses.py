@@ -1,9 +1,8 @@
 import datetime
-from pprint import pprint
 
 import fastapi
 from fastapi import status
-from sqlalchemy import select, func, or_, update
+from sqlalchemy import select, func
 from sqlalchemy.sql.functions import coalesce
 
 from app import orm
@@ -33,7 +32,8 @@ def add_expense(create_expense: CreateExpense):
         expense = Expense(
             description=create_expense.description, group_id=create_expense.group_id,
             amount=round(create_expense.amount, 2),
-            payment=create_expense.payment
+            payment=create_expense.payment,
+            currency=create_expense.currency,
         )
         transaction.add(expense)
         payers_hash = {}
@@ -53,7 +53,6 @@ def add_expense(create_expense: CreateExpense):
                 debtor_id=transaction.to_user,
                 borrower_id=transaction.from_user,
                 expense=expense,
-                currency="USD",
                 created_at=created_at
             ) for transaction in payment_graph
         ]
@@ -70,21 +69,11 @@ def add_expense(create_expense: CreateExpense):
         transaction.add_all(expense_users)
 
         for user_id in create_expense.users:
-            payment_node = next(
-                (node for node in payment_graph if node.from_user == user_id or node.to_user == user_id), None)
-            if payment_node:
-                if payment_node.from_user == user_id:
-                    transaction_type = "get_back"
-                else:
-                    transaction_type = "receive"
-                amount = round(float(payment_node.amount), 2)
-            else:
-                transaction_type = "nullify"
-                amount = 0
             FeedService(
                 transaction, "expense_created",
-                {"description": create_expense.description, "created_by": {"id": user.id, "name": user.fullname},
-                 "amount": amount, "transaction_type": transaction_type},
+                {"description": create_expense.description,
+                 "created_by": {"id": user.id, "name": user.fullname, "photo_url": user.photo_url}
+                 },
                 user_id
             ).call()
         transactions_dict = [{'debtor_id': expense_transaction.debtor_id, 'borrower_id': expense_transaction.borrower_id} for
@@ -208,7 +197,6 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
                 debtor_id=transaction.to_user,
                 borrower_id=transaction.from_user,
                 expense=expense,
-                currency="USD",
                 #created_at=created_at
                 created_at=datetime.datetime.utcnow()
             ) for transaction in payment_graph
