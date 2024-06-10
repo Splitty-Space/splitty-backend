@@ -1,4 +1,5 @@
 import datetime
+from typing import List, Optional
 
 import fastapi
 from fastapi import status
@@ -6,13 +7,14 @@ from sqlalchemy import select, func
 from sqlalchemy.sql.functions import coalesce
 
 from app import orm
+from app.services.build_transaction_info import BuildTransactionInfo
 from app.services.feed_service import FeedService
 from app.services.settle_up_service import SettleUpService
 from user.dtos import (
     FriendShortInfo,
     UserInfo,
     CreateExpense,
-    ExpenseInfo, TransactionInfo, EditExpense, GroupShortInfo, ExpenseUserInfo,
+    ExpenseInfo, TransactionInfo, EditExpense, GroupShortInfo, ExpenseUserInfo, ExpensesResponse, ExpenseShortInfo,
 )
 from user.models import User, Expense, Transaction, Group, ExpenseUser
 from utils.calculate_user_balance import calculate_user_balances
@@ -76,8 +78,9 @@ def add_expense(create_expense: CreateExpense):
                  },
                 user_id
             ).call()
-        transactions_dict = [{'debtor_id': expense_transaction.debtor_id, 'borrower_id': expense_transaction.borrower_id} for
-                         expense_transaction in transactions]
+        transactions_dict = [
+            {'debtor_id': expense_transaction.debtor_id, 'borrower_id': expense_transaction.borrower_id} for
+            expense_transaction in transactions]
         group_simplify_debts = expense.group.simplify_debts if expense.group else None
 
         transaction.commit()
@@ -150,8 +153,9 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
 
         old_group_id = expense.group_id
         old_group_simplify_debts = expense.group.simplify_debts if expense.group else None
-        old_transactions_dict = [{'debtor_id': expense_transaction.debtor_id, 'borrower_id': expense_transaction.borrower_id} for
-                         expense_transaction in expense.transactions]
+        old_transactions_dict = [
+            {'debtor_id': expense_transaction.debtor_id, 'borrower_id': expense_transaction.borrower_id} for
+            expense_transaction in expense.transactions]
 
         expense.description = edit_expense.description
         expense.amount = edit_expense.amount
@@ -197,7 +201,7 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
                 debtor_id=transaction.to_user,
                 borrower_id=transaction.from_user,
                 expense=expense,
-                #created_at=created_at
+                # created_at=created_at
                 created_at=datetime.datetime.utcnow()
             ) for transaction in payment_graph
         ]
@@ -214,16 +218,17 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
 
         transaction.add_all(expense_users)
 
-        new_transactions_dict = [{'debtor_id': expense_transaction.debtor_id, 'borrower_id': expense_transaction.borrower_id} for
-                         expense_transaction in expense.transactions]
+        new_transactions_dict = [
+            {'debtor_id': expense_transaction.debtor_id, 'borrower_id': expense_transaction.borrower_id} for
+            expense_transaction in expense.transactions]
         new_group_simplify_debts = expense.group.simplify_debts if expense.group else None
 
         transaction.commit()
 
-
     with orm.Session.begin() as transaction:
         if old_group_id == edit_expense.group_id:
-            SettleUpService(transaction, old_group_id, new_transactions_dict + old_transactions_dict, old_group_simplify_debts).call()
+            SettleUpService(transaction, old_group_id, new_transactions_dict + old_transactions_dict,
+                            old_group_simplify_debts).call()
         else:
             if old_group_id:
                 SettleUpService(transaction, old_group_id, old_transactions_dict, old_group_simplify_debts).call()
@@ -321,3 +326,104 @@ def get_expense(user_id: int, expense_id: int) -> ExpenseInfo:
             ) if group else None
         )
         return expense_info
+
+
+@router.get("/expenses")
+def get_expenses(user_id: int, page: int, limit: int, friend_id: Optional[int] = None, group_id: Optional[int] = None) -> ExpensesResponse:
+    with (orm.Session.begin() as transaction):
+        user = transaction.query(User).get(user_id)
+
+        if not user:
+            raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
+        if friend_id:
+            total_borrowed_expense_query = (
+                transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
+                .select_from(Transaction)
+                .filter((Transaction.borrower_id == user_id) & (Transaction.debtor_id == friend_id))
+                .group_by(Transaction.expense_id)
+                .subquery()
+            )
+            total_lent_expense_query = (
+                transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
+                .select_from(Transaction)
+                .group_by(Transaction.expense_id)
+                .filter((Transaction.debtor_id == user_id) & (Transaction.borrower_id == friend_id))
+                .subquery()
+            )
+
+            expenses_stmt = (
+                select(
+                    Expense,
+                    coalesce(total_borrowed_expense_query.c.total, 0),
+                    coalesce(total_lent_expense_query.c.total, 0),
+                    ~Expense.transactions.any((Transaction.settled.is_(False)) & (
+                            (Transaction.debtor_id == user_id) | (Transaction.borrower_id == user_id)))
+                )
+                .select_from(Expense)
+                .outerjoin(total_borrowed_expense_query, total_borrowed_expense_query.c.expense_id == Expense.id)
+                .outerjoin(total_lent_expense_query, total_lent_expense_query.c.expense_id == Expense.id)
+                .join(Transaction,
+                      (Transaction.expense_id == Expense.id) & (
+                              ((Transaction.debtor_id == user_id) & (Transaction.borrower_id == friend_id)) |
+                              ((Transaction.debtor_id == friend_id) & (Transaction.borrower_id == user_id))))
+                .group_by(Expense.id)
+                .order_by(Expense.id.desc())
+            )
+
+        if group_id:
+            total_borrowed_expense_query = (
+                transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
+                .select_from(Transaction)
+                .filter(Transaction.borrower_id == user_id)
+                .group_by(Transaction.expense_id)
+                .subquery()
+            )
+            total_lent_expense_query = (
+                transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
+                .select_from(Transaction)
+                .group_by(Transaction.expense_id)
+                .filter(Transaction.debtor_id == user_id)
+                .subquery()
+            )
+
+            expenses_stmt = (
+                select(
+                    Expense,
+                    coalesce(total_borrowed_expense_query.c.total, 0),
+                    coalesce(total_lent_expense_query.c.total, 0),
+                    ~Expense.transactions.any((Transaction.settled.is_(False)) & (
+                            (Transaction.debtor_id == user_id) | (Transaction.borrower_id == user_id)))
+                )
+                .select_from(Expense)
+                .outerjoin(total_borrowed_expense_query, total_borrowed_expense_query.c.expense_id == Expense.id)
+                .outerjoin(total_lent_expense_query, total_lent_expense_query.c.expense_id == Expense.id)
+                .join(Transaction, (Transaction.expense_id == Expense.id))
+                .group_by(Expense.id)
+                .order_by(Expense.id.desc())
+                .filter(Expense.group_id == group_id)
+            )
+
+        expenses = transaction.execute(expenses_stmt.offset((page - 1) * limit).limit(limit + 1)).fetchall()
+        has_more = len(expenses) == limit + 1
+        expenses = expenses[:-1] if has_more else expenses
+        expense_infos = []
+        unique_years = set()
+        for expense in expenses:
+            expense_model = expense[0]
+            expense_infos.append(ExpenseShortInfo(
+                id=expense_model.id,
+                description=expense_model.description,
+                payment=expense_model.payment,
+                settled=expense[3],
+                owes=round(expense[1], 2),
+                owe=round(expense[2], 2),
+                first_transaction=BuildTransactionInfo(expense_model.transactions[0]).call(),
+                created_at=expense_model.created_at
+            ))
+            unique_years.add(expense_model.created_at.year)
+
+        return ExpensesResponse(
+            data=expense_infos,
+            meta={'has_more': has_more, 'years': unique_years}
+        )

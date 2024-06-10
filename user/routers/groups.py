@@ -135,39 +135,6 @@ def get_group(user_id: int, group_id: int) -> GroupInfo:
         if not group:
             raise fastapi.HTTPException(status_code=404, detail="Group not found")
 
-        total_borrowed_expense_query = (
-            transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
-            .select_from(Transaction)
-            .filter(Transaction.borrower_id == user_id)
-            .group_by(Transaction.expense_id)
-            .subquery()
-        )
-        total_lent_expense_query = (
-            transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
-            .select_from(Transaction)
-            .group_by(Transaction.expense_id)
-            .filter(Transaction.debtor_id == user_id)
-            .subquery()
-        )
-
-        expenses_stmt = (
-            select(
-                Expense,
-                coalesce(total_borrowed_expense_query.c.total, 0),
-                coalesce(total_lent_expense_query.c.total, 0),
-                ~Expense.transactions.any((Transaction.settled.is_(False)) & (
-                        (Transaction.debtor_id == user_id) | (Transaction.borrower_id == user_id)))
-            )
-            .select_from(Expense)
-            .outerjoin(total_borrowed_expense_query, total_borrowed_expense_query.c.expense_id == Expense.id)
-            .outerjoin(total_lent_expense_query, total_lent_expense_query.c.expense_id == Expense.id)
-            .join(Transaction, (Transaction.expense_id == Expense.id))
-            .group_by(Expense.id)
-            .order_by(Expense.id.desc())
-            .filter(Expense.group_id == group_id)
-        )
-        expenses = transaction.execute(expenses_stmt).fetchall()
-
         stmt = (
             select(
                 User,
@@ -256,19 +223,6 @@ def get_group(user_id: int, group_id: int) -> GroupInfo:
             name=group.name,
             amount=0,
             simplify_debts=group.simplify_debts,
-            expenses=[
-                ExpenseShortInfo(
-                    id=expense[0].id,
-                    description=expense[0].description,
-                    payment=expense[0].payment,
-                    settled=expense[3],
-                    owes=round(expense[1], 2),
-                    owe=round(expense[2], 2),
-                    first_transaction=BuildTransactionInfo(expense[0].transactions[0]).call() if expense[
-                        0].payment else None
-                )
-                for expense in expenses
-            ],
             members=[
                 FriendShortInfo(
                     id=member[0].id,

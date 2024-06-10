@@ -98,12 +98,12 @@ def friends(user_id: int) -> FriendsResponse:
                 total=[
                     DebtInfo(
                         currency=debt[0],
-                        amount=debt[1]
+                        amount=round(debt[1], 2)
                     )
                     for debt in FriendTotalCalculator(transaction, user_id, friend[0].id).call() if debt[1] != 0
                 ]
             )
-            for friend in friends],
+                for friend in friends],
             meta={'total': TotalCalculator(transaction, user_id).call(), 'default_currency': user.default_currency}
         )
 
@@ -111,6 +111,11 @@ def friends(user_id: int) -> FriendsResponse:
 @router.get("/friends/{friend_id}")
 def friends(user_id: int, friend_id: int) -> FriendInfo:
     with (orm.Session.begin() as transaction):
+        user = transaction.query(User).get(user_id)
+
+        if not user:
+            raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
         stmt = select(friends_association_table).where(
             (
                     (friends_association_table.c.user_id == user_id)
@@ -142,59 +147,20 @@ def friends(user_id: int, friend_id: int) -> FriendInfo:
                                                                                          0)).filter_by(
             id=friend_id).first()
 
-        total_borrowed_expense_query = (
-            transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
-            .select_from(Transaction)
-            .filter((Transaction.borrower_id == user_id) & (Transaction.debtor_id == friend_id))
-            .group_by(Transaction.expense_id)
-            .subquery()
-        )
-        total_lent_expense_query = (
-            transaction.query(Transaction.expense_id, func.sum(Transaction.amount).label('total'))
-            .select_from(Transaction)
-            .group_by(Transaction.expense_id)
-            .filter((Transaction.debtor_id == user_id) & (Transaction.borrower_id == friend_id))
-            .subquery()
-        )
-
-        expenses_stmt = (
-            select(
-                Expense,
-                coalesce(total_borrowed_expense_query.c.total, 0),
-                coalesce(total_lent_expense_query.c.total, 0),
-                ~Expense.transactions.any((Transaction.settled.is_(False)) & (
-                        (Transaction.debtor_id == user_id) | (Transaction.borrower_id == user_id)))
-            )
-            .select_from(Expense)
-            .outerjoin(total_borrowed_expense_query, total_borrowed_expense_query.c.expense_id == Expense.id)
-            .outerjoin(total_lent_expense_query, total_lent_expense_query.c.expense_id == Expense.id)
-            .join(Transaction,
-                  (Transaction.expense_id == Expense.id) & (
-                          ((Transaction.debtor_id == user_id) & (Transaction.borrower_id == friend_id)) |
-                          ((Transaction.debtor_id == friend_id) & (Transaction.borrower_id == user_id))))
-            .group_by(Expense.id)
-            .order_by(Expense.id.desc())
-        )
-        expenses = transaction.execute(expenses_stmt).fetchall()
-
         return FriendInfo(
             id=friend[0].id,
             username=friend[0].username,
             name=friend[0].fullname,
             photo_url=friend[0].photo_url,
             amount=round(friend[1], 2),
-            expenses=[
-                ExpenseShortInfo(
-                    id=expense[0].id,
-                    description=expense[0].description,
-                    payment=expense[0].payment,
-                    settled=expense[3],
-                    owes=round(expense[1], 2),
-                    owe=round(expense[2], 2),
-                    first_transaction=BuildTransactionInfo(expense[0].transactions[0]).call() if expense[0].payment else None
+            total=[
+                DebtInfo(
+                    currency=debt[0],
+                    amount=round(debt[1], 2)
                 )
-                for expense in expenses
-            ]
+                for debt in FriendTotalCalculator(transaction, user_id, friend_id).call() if debt[1] != 0
+            ],
+            default_currency=user.default_currency
         )
 
 
@@ -349,10 +315,12 @@ def register_user(create_user: CreateUser):
         transaction.add(user)
         return True
 
+
 @router.get("/feeds")
 def feeds(user_id: int, page: int, limit: int) -> FeedResponse:
     with orm.Session.begin() as transaction:
-        feeds = transaction.query(Feed).order_by(Feed.id.asc()).filter(Feed.user_id == user_id).offset((page - 1) * limit).limit(limit+1).all()
+        feeds = transaction.query(Feed).order_by(Feed.id.asc()).filter(Feed.user_id == user_id).offset(
+            (page - 1) * limit).limit(limit + 1).all()
         has_more = len(feeds) == limit + 1
         feeds = feeds[:-1] if has_more else feeds
 
@@ -366,4 +334,4 @@ def feeds(user_id: int, page: int, limit: int) -> FeedResponse:
                 created_at=feed.created_at,
             ))
             unique_years.add(feed.created_at.year)
-        return FeedResponse(data=feed_infos,meta={'has_more': has_more, 'years': unique_years})
+        return FeedResponse(data=feed_infos, meta={'has_more': has_more, 'years': unique_years})

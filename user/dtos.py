@@ -114,6 +114,7 @@ class ExpenseShortInfo:
     owes: Decimal
     settled: bool
     payment: bool
+    created_at: str
     first_transaction: Optional[TransactionInfo] = None
     description: Optional[str] = None
 
@@ -132,8 +133,6 @@ class GroupInfo:
     name: str
     amount: Decimal
     simplify_debts: bool
-    expenses: list[ExpenseShortInfo]
-    expenses: list[ExpenseShortInfo]
     members: list[FriendShortInfo]
     total: list[TransactionInfo]
 
@@ -170,13 +169,20 @@ class ExpenseInfo:
 
 
 @dataclass
+class ExpensesResponse:
+    data: List[ExpenseShortInfo]
+    meta: dict
+
+
+@dataclass
 class FriendInfo:
     id: int
     username: str
     name: str
     photo_url: str
     amount: Decimal
-    expenses: list[ExpenseShortInfo]
+    default_currency: str
+    total: List[DebtInfo]
 
 
 @dataclass
