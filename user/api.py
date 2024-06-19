@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Optional
 
 import fastapi
 from fastapi import Query, status
@@ -26,7 +26,7 @@ router = fastapi.APIRouter()
 
 
 @router.get("/friends")
-def friends(user_id: int) -> FriendsResponse:
+def friends(user_id: int, search_name: Optional[str] = None) -> FriendsResponse:
     with orm.Session.begin() as transaction:
         user = transaction.query(User).get(user_id)
 
@@ -82,7 +82,15 @@ def friends(user_id: int) -> FriendsResponse:
                 friends_association_table.c.friend_id == User.id,
             )
             .group_by(User.id)
-            .filter(friends_association_table.c.user_id == user_id)
+            .filter(
+                sql.and_(
+                    friends_association_table.c.user_id == user_id,
+                                 sql.or_(
+                                     User.username.like(f"%{search_name}%"),
+                                     User.fullname.like(f"%{search_name}%"),
+                                 ) if search_name is not None and len(search_name) != 0 else True
+                )
+            )
             .order_by(asc("priority"), asc(amount_cte.c.amount))
         )
 

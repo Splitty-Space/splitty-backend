@@ -162,6 +162,7 @@ class ExpenseInfo:
     owes: Decimal
     amount: Decimal
     payment: bool
+    created_at: str
     transactions: list[TransactionInfo]
     expense_users: list[ExpenseUserInfo]
     description: Optional[str] = None

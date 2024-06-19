@@ -282,6 +282,7 @@ def get_expense(user_id: int, expense_id: int) -> ExpenseInfo:
 
         expense_info = ExpenseInfo(
             id=expense[0].id,
+            created_at=expense[0].created_at,
             description=expense[0].description,
             amount=round(expense[0].amount, 2),
             payment=expense[0].payment,
