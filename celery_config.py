@@ -9,9 +9,9 @@ celery_app = Celery(
 )
 
 celery_app.conf.beat_schedule = {
-    'add-every-minute': {
+    'run-every-hour': {
         'task': 'tasks.update_users_photos',
-        'schedule': crontab(hour='*')
+        'schedule': crontab(minute=0),
     },
 }
 celery_app.conf.timezone = 'UTC'
