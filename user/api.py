@@ -179,7 +179,7 @@ def search_user(
         query: Annotated[str, Query(max_length=30)],
 ) -> SearchUserPaginationResponse:
     with orm.Session.begin() as transaction:
-        query = query.strip()
+        query = query.strip().replace("@", "")
         stmt = (
             transaction.query(User)
             .filter(
@@ -306,21 +306,23 @@ def add_friend(add_friend: AddFriend):
 @router.post("/registerUser")
 def register_user(create_user: CreateUser):
     with orm.Session.begin() as transaction:
-        is_user_exist = (
-                transaction.query(User).filter_by(id=create_user.user_id).count() == 1
-        )
-        if is_user_exist:
-            return True
+        user = transaction.query(User).filter_by(id=create_user.user_id).first()
 
-        user = User(
-            id=create_user.user_id,
-            username=create_user.username,
-            fullname=create_user.fullname,
-            photo_url=create_user.photo_url,
-            default_currency="USD",
-            language="en",
-        )
-        transaction.add(user)
+        if user:
+            user.username = create_user.username
+            user.fullname = create_user.fullname
+            user.photo_url = create_user.photo_url
+        else:
+            user = User(
+                id=create_user.user_id,
+                username=create_user.username,
+                fullname=create_user.fullname,
+                photo_url=create_user.photo_url,
+                default_currency="USD",
+                language="en",
+            )
+            transaction.add(user)
+        transaction.commit()
         return True
 
 
