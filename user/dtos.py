@@ -90,6 +90,7 @@ class GroupUserInfo:
     id: int
     username: str
     name: str
+    photo_url: str
     type: Optional[str] = "user"
 
 

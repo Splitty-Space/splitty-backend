@@ -96,6 +96,7 @@ def groups(user_id: int) -> GroupResponse:
                     id=member.id,
                     username=member.username,
                     name=member.fullname,
+                    photo_url=member.photo_url
                 )
                     for member in group[0].users]
             )
