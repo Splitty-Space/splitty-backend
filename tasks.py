@@ -4,7 +4,9 @@ import telebot
 from app.orm import Session
 from user.models import User
 
-bot = telebot.TeleBot("7088707160:AAFL1MNhBlxHF-ltlb4BrOWOA6v5uO8PVSA", threaded=False)
+TOKEN = "7190819620:AAE9D4J4yzZsRQXC0z_QPfnJI14FMJCsafM"
+
+bot = telebot.TeleBot(TOKEN, threaded=False)
 
 @shared_task
 def update_users_photos():
