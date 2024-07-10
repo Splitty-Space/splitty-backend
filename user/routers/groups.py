@@ -117,8 +117,13 @@ def create_group(add_group: AddGroup):
         if not user:
             raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
 
-        group = Group(name=add_group.name, kind=add_group.kind)
+        group = Group(name=add_group.name, kind=add_group.kind, user=user)
         user.groups.append(group)
+
+        members = transaction.query(User).filter(User.id.in_(add_group.members)).all()
+
+        for member in members:
+            member.groups.append(group)
 
         return True
 
@@ -221,6 +226,7 @@ def get_group(user_id: int, group_id: int) -> GroupInfo:
             ]
         return GroupInfo(
             id=group.id,
+            user_id=group.user_id,
             name=group.name,
             amount=0,
             simplify_debts=group.simplify_debts,
@@ -233,7 +239,8 @@ def get_group(user_id: int, group_id: int) -> GroupInfo:
                 )
                 for member in members
             ],
-            total=total
+            total=total,
+            kind=group.kind,
         )
 
 

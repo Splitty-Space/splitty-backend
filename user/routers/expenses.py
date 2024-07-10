@@ -36,6 +36,7 @@ def add_expense(create_expense: CreateExpense):
             amount=round(create_expense.amount, 2),
             payment=create_expense.payment,
             currency=create_expense.currency,
+            date=create_expense.date,
         )
         transaction.add(expense)
         payers_hash = {}
@@ -420,9 +421,10 @@ def get_expenses(user_id: int, page: int, limit: int, friend_id: Optional[int] =
                 owes=round(expense[1], 2),
                 owe=round(expense[2], 2),
                 first_transaction=BuildTransactionInfo(expense_model.transactions[0]).call(),
-                created_at=expense_model.created_at
+                created_at=expense_model.created_at,
+                date=expense_model.date,
             ))
-            unique_years.add(expense_model.created_at.year)
+            unique_years.add(expense_model.date.year)
 
         return ExpensesResponse(
             data=expense_infos,

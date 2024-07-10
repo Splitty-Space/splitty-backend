@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional, List, Union
 
 from core.dtos import PaginationResponse
@@ -34,6 +35,7 @@ class CreateExpense:
     amount: Decimal
     payment: bool
     currency: str
+    date: datetime
     description: Optional[str] = None
     group_id: Optional[int] = None
 
@@ -116,6 +118,7 @@ class ExpenseShortInfo:
     settled: bool
     payment: bool
     created_at: str
+    date: str
     first_transaction: Optional[TransactionInfo] = None
     description: Optional[str] = None
 
@@ -131,7 +134,9 @@ class ExpenseUserInfo:
 @dataclass
 class GroupInfo:
     id: int
+    user_id: int
     name: str
+    kind: str
     amount: Decimal
     simplify_debts: bool
     members: list[FriendShortInfo]
@@ -214,6 +219,7 @@ class UpdateSettings:
 class AddGroup:
     user_id: int
     name: str
+    members: Optional[list[int]] = tuple()
     kind: Optional[str] = None
 
 

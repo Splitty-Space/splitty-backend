@@ -44,6 +44,9 @@ class User(Base):
     feeds: orm.Mapped[list["Feed"]] = orm.relationship(
         "Feed", back_populates="user"
     )
+    created_groups: orm.Mapped[list["Group"]] = orm.relationship(
+        "Group", back_populates="user"
+    )
 
     friends: orm.Mapped[list["User"]] = orm.relationship(
         "User",
@@ -70,8 +73,12 @@ class Group(Base):
     id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
     name: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=False)
     kind: orm.Mapped[str] = orm.mapped_column(types.String)
+    user_id: orm.Mapped[int] = orm.mapped_column(
+        types.Integer, schema.ForeignKey("users.id"), nullable=False
+    )
     simplify_debts: orm.Mapped[bool] = orm.mapped_column(types.Boolean, nullable=False, default=False)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
+    user: orm.Mapped["User"] = orm.relationship(back_populates="created_groups")
 
     users: orm.Mapped[list["User"]] = orm.relationship(
         secondary=user_group_table, back_populates="groups"
@@ -139,6 +146,7 @@ class Expense(Base):
     amount: orm.Mapped[float] = orm.mapped_column(types.DECIMAL, nullable=False)
     currency: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
+    date: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
 
     expense_users: orm.Mapped[list["ExpenseUser"]] = orm.relationship(
         back_populates="expense",
