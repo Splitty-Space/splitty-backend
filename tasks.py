@@ -4,7 +4,7 @@ import telebot
 from app.orm import Session
 from user.models import User
 
-TOKEN = "7190819620:AAE9D4J4yzZsRQXC0z_QPfnJI14FMJCsafM"
+TOKEN = "TOKEN"
 
 bot = telebot.TeleBot(TOKEN, threaded=False)
 
