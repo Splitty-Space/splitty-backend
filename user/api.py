@@ -2,7 +2,7 @@ from typing import Annotated, Optional
 
 import fastapi
 from fastapi import Query, status
-from sqlalchemy import select, sql, func, desc, asc, case
+from sqlalchemy import select, sql, func, desc, asc, case, delete
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.functions import coalesce
 
@@ -12,6 +12,7 @@ from app.query.total_calculator import TotalCalculator
 from app.services.build_transaction_info import BuildTransactionInfo
 from user.dtos import (
     AddFriend,
+    DeleteFriend,
     CreateUser,
     FriendShortInfo,
     SearchUserPaginationResponse,
@@ -299,6 +300,19 @@ def add_friend(add_friend: AddFriend):
 
         first_user.friends.append(second_user)
         second_user.friends.append(first_user)
+
+        return True
+
+
+@router.post("/deleteFriend")
+def delete_friend(delete_friend: DeleteFriend):
+    with orm.Session.begin() as transaction:
+        user = transaction.query(User).get(delete_friend.user_id)
+        friend = transaction.query(User).get(delete_friend.friend_id)
+
+        if friend in user.friends:
+            user.friends.remove(friend)
+            transaction.commit()
 
         return True
 

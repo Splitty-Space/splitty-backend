@@ -207,6 +207,10 @@ class AddFriend:
     user_id: int
     friend_id: int
 
+@dataclass
+class DeleteFriend:
+    user_id: int
+    friend_id: int
 
 @dataclass
 class UpdateSettings:
