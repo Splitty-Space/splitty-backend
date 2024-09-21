@@ -4,3 +4,4 @@ __pycache__
 .idea
 .vscode
 celerybeat-schedule.db
+node_modules
