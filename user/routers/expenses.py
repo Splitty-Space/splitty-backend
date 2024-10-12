@@ -413,6 +413,12 @@ def get_expenses(user_id: int, page: int, limit: int, friend_id: Optional[int] =
         unique_years = set()
         for expense in expenses:
             expense_model = expense[0]
+
+            transactions = []
+
+            for trans in expense_model.transactions:
+                transactions.append(BuildTransactionInfo(trans).call())
+
             expense_infos.append(ExpenseShortInfo(
                 id=expense_model.id,
                 description=expense_model.description,
@@ -420,7 +426,9 @@ def get_expenses(user_id: int, page: int, limit: int, friend_id: Optional[int] =
                 settled=expense[3],
                 owes=round(expense[1], 2),
                 owe=round(expense[2], 2),
-                first_transaction=BuildTransactionInfo(expense_model.transactions[0]).call(),
+                amount=expense_model.amount,
+                currency=expense_model.currency,
+                transactions=transactions,
                 created_at=expense_model.created_at,
                 date=expense_model.date,
             ))

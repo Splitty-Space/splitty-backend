@@ -115,11 +115,13 @@ class ExpenseShortInfo:
     id: int
     owe: Decimal
     owes: Decimal
+    amount: Decimal
+    currency: str
     settled: bool
     payment: bool
     created_at: str
     date: str
-    first_transaction: Optional[TransactionInfo] = None
+    transactions: list[TransactionInfo] = None
     description: Optional[str] = None
 
 
