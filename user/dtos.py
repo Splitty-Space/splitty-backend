@@ -111,6 +111,14 @@ class TransactionInfo:
 
 
 @dataclass
+class ExpenseUserInfo:
+    id: int
+    user: UserInfo
+    lent_amount: Decimal
+    debt_amount: Decimal
+
+
+@dataclass
 class ExpenseShortInfo:
     id: int
     owe: Decimal
@@ -121,16 +129,9 @@ class ExpenseShortInfo:
     payment: bool
     created_at: str
     date: str
+    expense_users: list[ExpenseUserInfo]
     transactions: list[TransactionInfo] = None
     description: Optional[str] = None
-
-
-@dataclass
-class ExpenseUserInfo:
-    id: int
-    user: UserInfo
-    lent_amount: Decimal
-    debt_amount: Decimal
 
 
 @dataclass

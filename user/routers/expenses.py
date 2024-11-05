@@ -431,6 +431,20 @@ def get_expenses(user_id: int, page: int, limit: int, friend_id: Optional[int] =
                 transactions=transactions,
                 created_at=expense_model.created_at,
                 date=expense_model.date,
+                expense_users=[
+                    ExpenseUserInfo(
+                        id=expense_user.id,
+                        user=UserInfo(
+                            id=expense_user.user.id,
+                            username=expense_user.user.username,
+                            name=expense_user.user.fullname,
+                            photo_url=expense_user.user.photo_url
+                        ),
+                        lent_amount=expense_user.lent_amount,
+                        debt_amount=expense_user.debt_amount,
+                    )
+                    for expense_user in expense_model.expense_users
+                ],
             ))
             unique_years.add(expense_model.date.year)
 
