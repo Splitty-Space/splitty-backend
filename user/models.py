@@ -1,7 +1,6 @@
 import datetime
-
+import enum
 from sqlalchemy import Column, ForeignKey, types, orm, sql, schema, Table
-from sqlalchemy.orm import mapper
 
 from app.orm import Base
 
@@ -18,7 +17,7 @@ friends_association_table = Table(
     Base.metadata,
     Column("user_id", types.Integer, ForeignKey("users.id")),
     Column("friend_id", types.Integer, ForeignKey("users.id")),
-    Column("created_at", types.DateTime, default=datetime.datetime.utcnow),
+    Column("created_at", types.DateTime, default=datetime.datetime.utcnow, nullable=False),
 )
 
 
@@ -40,6 +39,9 @@ class User(Base):
     )
     expense_users: orm.Mapped[list["ExpenseUser"]] = orm.relationship(
         "ExpenseUser", back_populates="user"
+    )
+    activity_user: orm.Mapped[list["ActivityUser"]] = orm.relationship(
+        "ActivityUser", back_populates="user"
     )
     feeds: orm.Mapped[list["Feed"]] = orm.relationship(
         "Feed", back_populates="user"
@@ -71,7 +73,7 @@ class Group(Base):
     __tablename__ = "groups"
 
     id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
-    name: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=False)
+    name: orm.Mapped[str] = orm.mapped_column(types.VARCHAR, nullable=False)
     kind: orm.Mapped[str] = orm.mapped_column(types.String)
     user_id: orm.Mapped[int] = orm.mapped_column(
         types.Integer, schema.ForeignKey("users.id"), nullable=False
@@ -106,6 +108,14 @@ class ExpenseUser(Base):
     expense: orm.Mapped["Expense"] = orm.relationship(back_populates="expense_users")
     user: orm.Mapped["User"] = orm.relationship(back_populates="expense_users")
 
+    def to_dict(self):
+        return {
+            "user_id": self.user_id,
+            "expense_id": self.expense_id,
+            "lent_amount": float(self.lent_amount),  # Convert Decimal to float
+            "debt_amount": float(self.debt_amount),  # Convert Decimal to float
+        }
+
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -132,14 +142,24 @@ class Transaction(Base):
     debtor: orm.Mapped["User"] = orm.relationship("User", foreign_keys=[debtor_id],
                                                   back_populates="transactions_as_debtor")
 
+    def to_dict(self):
+        return {
+            "debtor_id": self.debtor_id,
+            "borrower_id": self.borrower_id,
+            "expense_id": self.expense_id,
+            "settled": self.settled,
+            "amount": float(self.amount),  # Convert Decimal to float
+        }
+
 
 class Expense(Base):
     __tablename__ = "expenses"
 
     id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
-    description: orm.Mapped[str] = orm.mapped_column(types.String)
+    description: orm.Mapped[str] = orm.mapped_column(types.String, nullable=True)
 
     payment: orm.Mapped[bool] = orm.mapped_column(types.Boolean)
+    isDeleted: orm.Mapped[bool] = orm.mapped_column(types.Boolean, default=False)
     group_id: orm.Mapped[int] = orm.mapped_column(
         types.Integer, schema.ForeignKey("groups.id"), nullable=True
     )
@@ -159,6 +179,22 @@ class Expense(Base):
     )
     group: orm.Mapped["Group"] = orm.relationship(back_populates="expenses")
 
+    # Convert object to a dictionary
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "description": self.description,
+            "payment": self.payment,
+            "group_id": self.group_id,
+            "amount": float(self.amount),  # Convert to float if it's a Decimal
+            "currency": self.currency,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "date": self.date.isoformat() if self.date else None,
+            "expense_users": [expense_user.to_dict() for expense_user in self.expense_users],
+            "transactions": [transaction.to_dict() for transaction in self.transactions],
+            "group": self.group.to_dict() if self.group else None,  # Handle group as an object
+        }
+
 
 class Feed(Base):
     __tablename__ = "feeds"
@@ -173,3 +209,45 @@ class Feed(Base):
     type: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
 
     user: orm.Mapped["User"] = orm.relationship(back_populates="feeds")
+
+class ActivityType(enum.Enum):
+    EXPENSE_CREATED = "EXPENSE_CREATED"
+    EXPENSE_EDITED = "EXPENSE_EDITED"
+    EXPENSE_DELETED = "EXPENSE_DELETED"
+    PAYMENT_CREATED = "PAYMENT_CREATED"
+    PAYMENT_EDITED = "PAYMENT_EDITED"
+    PAYMENT_DELETED = "PAYMENT_DELETED"
+
+class Activity(Base):
+    __tablename__ = "activity"
+
+    id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
+    #activity_type: orm.Mapped[str] = orm.mapped_column(types.Enum(ActivityType), nullable=False)
+    activity_type: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
+    performed_by_user_id: orm.Mapped[int] = orm.mapped_column(
+        types.Integer, schema.ForeignKey("users.id"), nullable=False
+    )
+    expenses_id: orm.Mapped[int] = orm.mapped_column(
+        types.Integer, schema.ForeignKey("expenses.id"), nullable=False
+    )
+    created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
+    data: orm.Mapped[dict] = orm.mapped_column(types.JSON, nullable=False)
+    activity_user: orm.Mapped[list["ActivityUser"]] = orm.relationship(
+        back_populates="activity",
+        cascade="all, delete-orphan"
+    )
+
+class ActivityUser(Base):
+    __tablename__ = "activity_user"
+
+    id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
+    user_id: orm.Mapped[int] = orm.mapped_column(
+        types.Integer, schema.ForeignKey("users.id"), nullable=False
+    )
+    activity_id: orm.Mapped[int] = orm.mapped_column(
+        types.Integer, schema.ForeignKey("activity.id"), nullable=False
+    )
+    activity: orm.Mapped["Activity"] = orm.relationship(back_populates="activity_user")
+    user: orm.Mapped["User"] = orm.relationship(back_populates="activity_user")
+
+

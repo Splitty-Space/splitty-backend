@@ -1,5 +1,5 @@
 import datetime
-from typing import List, Optional
+from typing import Optional
 
 import fastapi
 from fastapi import status
@@ -16,8 +16,9 @@ from user.dtos import (
     CreateExpense,
     ExpenseInfo, TransactionInfo, EditExpense, GroupShortInfo, ExpenseUserInfo, ExpensesResponse, ExpenseShortInfo,
 )
-from user.models import User, Expense, Transaction, Group, ExpenseUser
+from user.models import User, Expense, Transaction, Group, ExpenseUser, Activity, ActivityType, ActivityUser
 from utils.calculate_user_balance import calculate_user_balances
+from utils.deep_dict_diff import deep_dict_diff
 from utils.make_payment_graph import make_payment_graph
 
 router = fastapi.APIRouter()
@@ -83,6 +84,23 @@ def add_expense(create_expense: CreateExpense):
             {'debtor_id': expense_transaction.debtor_id, 'borrower_id': expense_transaction.borrower_id} for
             expense_transaction in transactions]
         group_simplify_debts = expense.group.simplify_debts if expense.group else None
+        transaction.flush()
+
+        new_activity = Activity(
+            activity_type=ActivityType.PAYMENT_CREATED.value if expense.payment else ActivityType.EXPENSE_CREATED.value,
+            expenses_id=expense.id,
+            created_at=expense.created_at,
+            performed_by_user_id=user.id,
+            data={},
+        )
+        transaction.add(new_activity)
+        transaction.flush()
+
+        activity_users = [
+            ActivityUser(user_id=user_id, activity_id=new_activity.id)
+            for user_id in create_expense.users
+        ]
+        transaction.add_all(activity_users)
 
         transaction.commit()
 
@@ -94,7 +112,7 @@ def add_expense(create_expense: CreateExpense):
 
 
 @router.delete("/expenses/{expense_id}")
-def delete_expense(expense_id: int):
+def delete_expense(expense_id: int, user_id: int):
     with orm.Session.begin() as transaction:
         expense = (
             transaction.query(Expense)
@@ -117,10 +135,33 @@ def delete_expense(expense_id: int):
                 )
             else:
                 transaction.delete(expense_transaction)
+
+        user = transaction.query(User).get(user_id)
+
+        if not user:
+            raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
+        new_activity = Activity(
+            activity_type=ActivityType.PAYMENT_DELETED.value if expense.payment else ActivityType.EXPENSE_DELETED.value,
+            expenses_id=expense.id,
+            performed_by_user_id=user.id,
+            data={},
+        )
+        transaction.add(new_activity)
+        transaction.flush()
+
+        activity_users = [
+            ActivityUser(user_id=user.user_id, activity_id=new_activity.id)
+            for user in expense.expense_users
+        ]
+        transaction.add_all(activity_users)
+
         transaction.commit()
 
     with orm.Session.begin() as transaction:
-        transaction.delete(expense)
+        expense.isDeleted = True
+        transaction.add(expense)
+        transaction.commit()
 
     return True
 
@@ -141,6 +182,8 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
 
         if not expense:
             raise fastapi.HTTPException(status_code=404, detail="Expense not found")
+
+        old_expense = expense.to_dict()
 
         group = (
             transaction.query(Group)
@@ -227,6 +270,39 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
         transaction.commit()
 
     with orm.Session.begin() as transaction:
+        user = transaction.query(User).get(edit_expense.user_id)
+
+        expense = (
+            transaction.query(Expense)
+            .join(Transaction,
+                  (Transaction.expense_id == Expense.id) & ((Transaction.borrower_id == edit_expense.user_id) | (
+                          Transaction.debtor_id == edit_expense.user_id))
+                  )
+
+            .filter(Expense.id == expense_id)
+            .first()
+        )
+
+        diff = deep_dict_diff(old_expense, expense.to_dict())
+
+        new_activity = Activity(
+            activity_type=ActivityType.PAYMENT_EDITED.value if expense.payment else ActivityType.EXPENSE_EDITED.value,
+            expenses_id=expense.id,
+            performed_by_user_id=user.id,
+            data=diff,
+        )
+        transaction.add(new_activity)
+        transaction.flush()
+
+        activity_users = [
+            ActivityUser(user_id=user_id, activity_id=new_activity.id)
+            for user_id in edit_expense.users
+        ]
+        transaction.add_all(activity_users)
+
+        transaction.commit()
+
+    with orm.Session.begin() as transaction:
         if old_group_id == edit_expense.group_id:
             SettleUpService(transaction, old_group_id, new_transactions_dict + old_transactions_dict,
                             old_group_simplify_debts).call()
@@ -283,10 +359,11 @@ def get_expense(user_id: int, expense_id: int) -> ExpenseInfo:
 
         expense_info = ExpenseInfo(
             id=expense[0].id,
-            created_at=expense[0].created_at,
+            date=expense[0].created_at,
             description=expense[0].description,
             amount=round(expense[0].amount, 2),
             payment=expense[0].payment,
+            currency=expense[0].currency,
             expense_users=[
                 ExpenseUserInfo(
                     id=expense_user.id,
@@ -331,7 +408,8 @@ def get_expense(user_id: int, expense_id: int) -> ExpenseInfo:
 
 
 @router.get("/expenses")
-def get_expenses(user_id: int, page: int, limit: int, friend_id: Optional[int] = None, group_id: Optional[int] = None) -> ExpensesResponse:
+def get_expenses(user_id: int, page: int, limit: int, friend_id: Optional[int] = None,
+                 group_id: Optional[int] = None) -> ExpensesResponse:
     with (orm.Session.begin() as transaction):
         user = transaction.query(User).get(user_id)
 

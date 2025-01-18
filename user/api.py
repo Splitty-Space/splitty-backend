@@ -2,14 +2,13 @@ from typing import Annotated, Optional
 
 import fastapi
 from fastapi import Query, status
-from sqlalchemy import select, sql, func, desc, asc, case, delete
+from sqlalchemy import select, sql, func, asc, case
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.functions import coalesce
 
 from app import orm
 from app.query.friend_total_calculator import FriendTotalCalculator
 from app.query.total_calculator import TotalCalculator
-from app.services.build_transaction_info import BuildTransactionInfo
 from user.dtos import (
     AddFriend,
     DeleteFriend,
@@ -18,10 +17,12 @@ from user.dtos import (
     SearchUserPaginationResponse,
     UserInfo,
     FriendInfo,
-    ExpenseShortInfo,
-    FeedInfo, FriendsResponse, DebtInfo, FeedResponse, Index,
+    FeedInfo,
+    FriendsResponse,
+    DebtInfo,
+    FeedResponse,
 )
-from user.models import User, friends_association_table, Expense, Transaction, Feed
+from user.models import User, friends_association_table, Transaction, Feed
 
 router = fastapi.APIRouter()
 
@@ -86,10 +87,10 @@ def friends(user_id: int, search_name: Optional[str] = None) -> FriendsResponse:
             .filter(
                 sql.and_(
                     friends_association_table.c.user_id == user_id,
-                                 sql.or_(
-                                     User.username.like(f"%{search_name}%"),
-                                     User.fullname.like(f"%{search_name}%"),
-                                 ) if search_name is not None and len(search_name) != 0 else True
+                    sql.or_(
+                        User.username.like(f"%{search_name}%"),
+                        User.fullname.like(f"%{search_name}%"),
+                    ) if search_name is not None and len(search_name) != 0 else True
                 )
             )
             .order_by(asc("priority"), asc(amount_cte.c.amount))

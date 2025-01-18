@@ -171,7 +171,8 @@ class ExpenseInfo:
     owes: Decimal
     amount: Decimal
     payment: bool
-    created_at: str
+    date: str
+    currency: str
     transactions: list[TransactionInfo]
     expense_users: list[ExpenseUserInfo]
     description: Optional[str] = None
@@ -257,3 +258,31 @@ class Index:
     user_id: int
     page: int
     limit: int
+
+
+@dataclass
+class ActivityUser:
+    user_id: int
+    activity_id: int
+
+@dataclass
+class ExpenseActivityInfo:
+    id: int
+    isDeleted: bool
+    amount: Decimal
+    expense_users: list[ExpenseUserInfo]
+    description: Optional[str] = None
+
+@dataclass
+class ActivityDTO:
+    id: int
+    activity_type: str
+    created_at: str
+    data: dict
+    user: UserInfo
+    expense: ExpenseActivityInfo
+
+@dataclass
+class ActivityResponse:
+    data: object
+    meta: dict
