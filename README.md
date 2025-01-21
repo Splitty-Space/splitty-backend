@@ -17,4 +17,4 @@
 `celery -A celery_config.celery_app beat --loglevel=info`
 
 
-#TEST WORKFLOW
+#TEST WORKFLOW !
