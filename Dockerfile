@@ -1,5 +1,5 @@
 # Use the official Python base image
-FROM python:3.13.1-slim
+FROM python:3.9.6-slim
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -16,5 +16,6 @@ COPY . .
 # Expose the port on which the application will run
 EXPOSE 8000
 
+CMD "alembic upgrade head"
 # Run the FastAPI application using uvicorn server
 CMD ["uvicorn", "app.app:app", "--port", "8000", "--host", "0.0.0.0"]
