@@ -15,3 +15,6 @@
 `celery -A celery_config.celery_app worker --loglevel=info`
 
 `celery -A celery_config.celery_app beat --loglevel=info`
+
+
+#TEST
