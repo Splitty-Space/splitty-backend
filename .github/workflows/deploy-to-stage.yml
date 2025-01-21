@@ -1,8 +1,9 @@
 name: Deploy to stage
 
 on:
-  pull_request:
-    types: [opened, synchronize]
+  push:
+    branches:
+      - main
 
 run-name: "Deploy to stage ${{ github.event.pull_request.title }}"
 
