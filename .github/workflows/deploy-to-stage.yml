@@ -1,8 +1,9 @@
 name: Deploy to stage
 
 on:
-  pull_request:
-    types: [opened, synchronize]
+  push:
+    branches:
+      - main
 
 run-name: "Deploy to stage ${{ github.event.pull_request.title }}"
 
@@ -20,7 +21,7 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Install buildx
@@ -35,11 +36,15 @@ jobs:
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          tags: splittyapp/stage-splitty-be:latest
 
   deployment:
     name: deployment  stage
     needs: [build ]
     runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
     steps:
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
@@ -50,5 +55,5 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HOST_STAGE }} << EOF
             cd /root/app
-            ./deploy_backend.sh
+            ./deploy-backend.sh
           EOF
