@@ -35,11 +35,7 @@ jobs:
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            VERSION=${{ needs.set-version.outputs.BUILD_VERSION }}-${{ needs.set-version.outputs.BUILD_REVISION }}
-          tags: |
-            splittyapp/stage-splitty-be:${{ needs.set-version.outputs.BUILD_VERSION }}-${{ needs.set-version.outputs.BUILD_REVISION }}
-            splittyapp/stage-splitty-be:${{ needs.set-version.outputs.BUILD_VERSION }}
+          tags: splittyapp/stage-splitty-be:latest
 
   deployment:
     name: deployment  stage
