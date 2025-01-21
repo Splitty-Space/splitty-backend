@@ -53,7 +53,7 @@ jobs:
       - name: SSH and Deploy
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HOST_STAGE }} << EOF
-            docker login --username "$DOCKERHUB_USERNAME" --password "$DOCKERHUB_PASSWORD"
+            docker login --username $DOCKERHUB_USERNAME --password $DOCKERHUB_PASSWORD
             docker pull splittyapp/stage-splitty-be:latest
             docker run -d -p 8000:8000 splittyapp/stage-splitty-be:latest
           EOF
