@@ -4,7 +4,8 @@ from config import DATABASE_URL
 
 
 engine = sqlalchemy.create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
+    DATABASE_URL,
+    #connect_args={"check_same_thread": False}
 )
 
 Session = orm.sessionmaker(autocommit=False, autoflush=False, bind=engine)

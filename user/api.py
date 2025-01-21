@@ -83,7 +83,7 @@ def friends(user_id: int, search_name: Optional[str] = None) -> FriendsResponse:
                 friends_association_table,
                 friends_association_table.c.friend_id == User.id,
             )
-            .group_by(User.id)
+            .group_by(User.id, amount_cte.c.amount)
             .filter(
                 sql.and_(
                     friends_association_table.c.user_id == user_id,
