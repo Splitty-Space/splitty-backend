@@ -16,6 +16,6 @@ COPY . .
 # Expose the port on which the application will run
 EXPOSE 8000
 
-CMD "alembic upgrade head"
+CMD ["alembic", "upgrade", "head"]
 # Run the FastAPI application using uvicorn server
 CMD ["uvicorn", "app.app:app", "--port", "8000", "--host", "0.0.0.0"]
