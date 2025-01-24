@@ -21,7 +21,7 @@ class TotalCalculator:
                 .select_from(Transaction)
                 .join(Expense)
                 .filter(Transaction.borrower_id == self.user_id, Transaction.settled.is_(False), Expense.group_id == self.group_id)
-                .group_by(func.cube(Expense.currency, Transaction.debtor_id))
+                .group_by(Expense.currency)
                 .subquery()
             )
             total_lent_query = (
@@ -30,7 +30,7 @@ class TotalCalculator:
                 .select_from(Transaction)
                 .join(Expense)
                 .filter(Transaction.debtor_id == self.user_id, Transaction.settled.is_(False))
-                .group_by(func.cube(Expense.currency, Transaction.borrower_id))
+                .group_by(Expense.currency)
                 .subquery()
             )
         else:
@@ -39,7 +39,7 @@ class TotalCalculator:
                 .select_from(Transaction)
                 .join(Expense)
                 .filter(Transaction.borrower_id == self.user_id, Transaction.settled.is_(False))
-                .group_by(func.cube(Expense.currency, Transaction.debtor_id))
+                .group_by(Expense.currency)
                 .subquery()
             )
             total_lent_query = (
@@ -48,7 +48,7 @@ class TotalCalculator:
                 .select_from(Transaction)
                 .join(Expense)
                 .filter(Transaction.debtor_id == self.user_id, Transaction.settled.is_(False))
-                .group_by(func.cube(Expense.currency, Transaction.borrower_id))
+                .group_by(Expense.currency)
                 .subquery()
             )
 
