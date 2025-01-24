@@ -3,8 +3,6 @@ from sqlalchemy import orm
 from config import DATABASE_URL
 
 
-print("DATABASE_URL = ", DATABASE_URL)
-
 engine = sqlalchemy.create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False}
