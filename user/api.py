@@ -324,6 +324,8 @@ def register_user(create_user: CreateUser):
     with orm.Session.begin() as transaction:
         user = transaction.query(User).filter_by(id=create_user.user_id).first()
 
+        refer_id = None
+
         if user:
             user.username = create_user.username
             user.fullname = create_user.fullname
@@ -331,8 +333,8 @@ def register_user(create_user: CreateUser):
         else:
             if create_user.referred_by_code:
                 refer = transaction.query(User).filter_by(referral_code=create_user.referred_by_code).first()
-                if not refer:
-                    raise fastapi.HTTPException(status.HTTP_400_BAD_REQUEST, "Refer not found")
+                if refer:
+                    refer_id = refer.id
 
             user = User(
                 id=create_user.user_id,
@@ -346,6 +348,10 @@ def register_user(create_user: CreateUser):
             )
             transaction.add(user)
         transaction.commit()
+
+        if refer_id:
+            add_friend(AddFriend(create_user.user_id, friend_id=refer_id))
+
         return True
 
 
