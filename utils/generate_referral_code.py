@@ -28,6 +28,3 @@ def generate_referral_code(user_id: int) -> str:
         referral_code.append(alphabet[index])
 
     return ''.join(referral_code)
-
-
-print(generate_referral_code(254960854))
