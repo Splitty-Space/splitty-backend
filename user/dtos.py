@@ -84,7 +84,7 @@ class UserInfo:
     username: str
     name: str
     photo_url: str
-    referral_code: str
+    referral_code: Optional[str] = None
     default_currency: Optional[str] = None
     language: Optional[str] = None
 
