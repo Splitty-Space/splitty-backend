@@ -12,6 +12,7 @@ class CreateUser:
     username: str
     fullname: str
     photo_url: str
+    referred_by_code: str
 
 
 @dataclass
@@ -83,6 +84,7 @@ class UserInfo:
     username: str
     name: str
     photo_url: str
+    referral_code: str
     default_currency: Optional[str] = None
     language: Optional[str] = None
 

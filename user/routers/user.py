@@ -24,7 +24,8 @@ def get_me(user_id: int) -> UserInfo:
             name=user.fullname,
             photo_url=user.photo_url,
             default_currency=user.default_currency,
-            language=user.language
+            language=user.language,
+            referral_code=user.referral_code,
         )
 
 

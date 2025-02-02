@@ -1,6 +1,8 @@
 import datetime
 import enum
-from sqlalchemy import Column, ForeignKey, types, orm, sql, schema, Table
+from typing import Optional
+
+from sqlalchemy import Column, ForeignKey, types, orm, sql, schema, Table, event
 
 from app.orm import Base
 
@@ -31,6 +33,23 @@ class User(Base):
     language: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
     photo_url: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=True)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
+
+    referred_by: orm.Mapped[Optional[int]] = orm.mapped_column(
+        types.Integer, ForeignKey('users.id'), nullable=True
+    )
+
+    referrer: orm.Mapped[Optional["User"]] = orm.relationship(
+        "User", remote_side=[id], back_populates="referrals"
+    )
+    referrals: orm.Mapped[list["User"]] = orm.relationship(
+        "User", back_populates="referrer"
+    )
+
+    referral_code: orm.Mapped[str] = orm.mapped_column(
+        types.String(length=11),
+        unique=True,
+        nullable=False,
+    )
 
     is_admin: orm.Mapped[bool] = orm.mapped_column(types.Boolean, default=sql.false())
 
@@ -222,7 +241,7 @@ class Activity(Base):
     __tablename__ = "activity"
 
     id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
-    #activity_type: orm.Mapped[str] = orm.mapped_column(types.Enum(ActivityType), nullable=False)
+    # activity_type: orm.Mapped[str] = orm.mapped_column(types.Enum(ActivityType), nullable=False)
     activity_type: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
     performed_by_user_id: orm.Mapped[int] = orm.mapped_column(
         types.Integer, schema.ForeignKey("users.id"), nullable=False
@@ -237,6 +256,7 @@ class Activity(Base):
         cascade="all, delete-orphan"
     )
 
+
 class ActivityUser(Base):
     __tablename__ = "activity_user"
 
@@ -249,5 +269,3 @@ class ActivityUser(Base):
     )
     activity: orm.Mapped["Activity"] = orm.relationship(back_populates="activity_user")
     user: orm.Mapped["User"] = orm.relationship(back_populates="activity_user")
-
-

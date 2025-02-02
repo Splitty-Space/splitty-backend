@@ -23,6 +23,7 @@ from user.dtos import (
     FeedResponse,
 )
 from user.models import User, friends_association_table, Transaction, Feed
+from utils.generate_referral_code import generate_referral_code
 
 router = fastapi.APIRouter()
 
@@ -328,6 +329,11 @@ def register_user(create_user: CreateUser):
             user.fullname = create_user.fullname
             user.photo_url = create_user.photo_url
         else:
+            if create_user.referred_by_code:
+                refer = transaction.query(User).filter_by(referral_code=create_user.referred_by_code).first()
+                if not refer:
+                    raise fastapi.HTTPException(status.HTTP_400_BAD_REQUEST, "Refer not found")
+
             user = User(
                 id=create_user.user_id,
                 username=create_user.username,
@@ -335,6 +341,8 @@ def register_user(create_user: CreateUser):
                 photo_url=create_user.photo_url,
                 default_currency="USD",
                 language="en",
+                referral_code=generate_referral_code(create_user.user_id),
+                referred_by=refer.id,
             )
             transaction.add(user)
         transaction.commit()

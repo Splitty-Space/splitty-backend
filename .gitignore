@@ -5,3 +5,4 @@ __pycache__
 .vscode
 celerybeat-schedule.db
 node_modules
+.env
