@@ -342,7 +342,7 @@ def register_user(create_user: CreateUser):
                 default_currency="USD",
                 language="en",
                 referral_code=generate_referral_code(create_user.user_id),
-                referred_by=refer.id,
+                referred_by=refer.id if refer else None
             )
             transaction.add(user)
         transaction.commit()
