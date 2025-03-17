@@ -1,5 +1,5 @@
 import fastapi
-from fastapi import status
+from fastapi import status, Response
 
 from app import orm
 from user.dtos import (
@@ -46,3 +46,13 @@ def update_settings(update_settings: UpdateSettings):
         transaction.commit()
 
         return True
+
+
+@router.get("/user/{user_id}/photo")
+def get_user_photo(user_id: int) -> Response:
+    with orm.Session.begin() as transaction:
+        user = transaction.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise fastapi.HTTPException(status_code=404, detail="User not found")
+
+        return Response(content=user.photo, media_type="image/jpeg")

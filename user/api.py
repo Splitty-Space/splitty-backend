@@ -1,6 +1,8 @@
 from typing import Annotated, Optional
+import logging
 
 import fastapi
+import requests
 from fastapi import Query, status
 from sqlalchemy import select, sql, func, asc, case
 from sqlalchemy.orm import load_only
@@ -324,12 +326,24 @@ def register_user(create_user: CreateUser):
     with orm.Session.begin() as transaction:
         user = transaction.query(User).filter_by(id=create_user.user_id).first()
 
+        photo_data = None
+
+        if create_user.photo_url != "":
+            try:
+                response = requests.get(create_user.photo_url)
+                response.raise_for_status()
+                photo_data = response.content
+            except Exception as e:
+                logging.error(f"Error loading image: {e}")
+                photo_data = None
+
         refer_id = None
 
         if user:
             user.username = create_user.username
             user.fullname = create_user.fullname
             user.photo_url = create_user.photo_url
+            user.photo = photo_data
         else:
             if create_user.referred_by_code:
                 refer = transaction.query(User).filter_by(referral_code=create_user.referred_by_code).first()
@@ -341,6 +355,7 @@ def register_user(create_user: CreateUser):
                 username=create_user.username,
                 fullname=create_user.fullname,
                 photo_url=create_user.photo_url,
+                photo=photo_data,
                 default_currency="USD",
                 language="en",
                 referral_code=generate_referral_code(create_user.user_id),

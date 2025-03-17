@@ -2,7 +2,7 @@ import datetime
 import enum
 from typing import Optional
 
-from sqlalchemy import Column, ForeignKey, types, orm, sql, schema, Table, event
+from sqlalchemy import Column, ForeignKey, types, orm, sql, schema, Table, LargeBinary
 
 from app.orm import Base
 
@@ -32,6 +32,7 @@ class User(Base):
     default_currency: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
     language: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
     photo_url: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=True)
+    photo = Column(LargeBinary, nullable=True)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
 
     referred_by: orm.Mapped[Optional[int]] = orm.mapped_column(
