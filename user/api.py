@@ -305,6 +305,8 @@ def add_friend(add_friend: AddFriend):
         first_user.friends.append(second_user)
         second_user.friends.append(first_user)
 
+        transaction.commit()
+
         return True
 
 
