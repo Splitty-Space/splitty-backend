@@ -340,6 +340,10 @@ def register_user(create_user: CreateUser):
                 photo_data = None
 
         refer_id = None
+        if create_user.referred_by_code:
+            refer = transaction.query(User).filter_by(referral_code=create_user.referred_by_code).first()
+            if refer:
+                refer_id = refer.id
 
         if user:
             user.username = create_user.username
@@ -347,11 +351,6 @@ def register_user(create_user: CreateUser):
             user.photo_url = create_user.photo_url
             user.photo = photo_data
         else:
-            if create_user.referred_by_code:
-                refer = transaction.query(User).filter_by(referral_code=create_user.referred_by_code).first()
-                if refer:
-                    refer_id = refer.id
-
             user = User(
                 id=create_user.user_id,
                 username=create_user.username,
