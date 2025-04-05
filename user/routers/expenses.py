@@ -102,13 +102,16 @@ def add_expense(create_expense: CreateExpense):
         ]
         transaction.add_all(activity_users)
 
+        expense_id = expense.id
+
         transaction.commit()
 
     with orm.Session.begin() as transaction:
         SettleUpService(transaction, create_expense.group_id, transactions_dict, group_simplify_debts).call()
 
         transaction.commit()
-    return True
+
+    return get_expense(create_expense.user_id, expense_id)
 
 
 @router.delete("/expenses/{expense_id}")
