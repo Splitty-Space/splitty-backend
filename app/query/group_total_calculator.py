@@ -17,21 +17,25 @@ class GroupTotalCalculator:
             self.transaction.query(Expense.currency, Transaction.debtor_id, func.sum(Transaction.amount).label("total"))
             .select_from(Transaction)
             .join(Expense)
-            .filter(Transaction.borrower_id == self.user_id, Expense.group_id == self.group_id, Transaction.settled.is_(False))
+            .filter(Transaction.borrower_id == self.user_id, Expense.group_id == self.group_id,
+                    Transaction.settled.is_(False))
             .group_by(Transaction.debtor_id, Expense.currency)
             .subquery()
         )
         total_lent_query = (
-            self.transaction.query(Expense.currency, Transaction.borrower_id, func.sum(Transaction.amount).label("total"))
+            self.transaction.query(Expense.currency, Transaction.borrower_id,
+                                   func.sum(Transaction.amount).label("total"))
             .select_from(Transaction)
             .join(Expense)
-            .filter(Transaction.debtor_id == self.user_id, Expense.group_id == self.group_id, Transaction.settled.is_(False))
+            .filter(Transaction.debtor_id == self.user_id, Expense.group_id == self.group_id,
+                    Transaction.settled.is_(False))
             .group_by(Transaction.borrower_id, Expense.currency)
             .subquery()
         )
 
         total = (
-            self.transaction.query(Expense.currency, coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0))
+            self.transaction.query(Expense.currency, func.sum(
+                coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)).label('total'))
             .select_from(Transaction)
             .join(Expense)
             .outerjoin(total_borrowed_query, total_borrowed_query.c.currency == Expense.currency)

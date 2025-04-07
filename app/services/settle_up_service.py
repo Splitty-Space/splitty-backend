@@ -50,7 +50,6 @@ class SettleUpService:
                     )
 
                     self.transaction.execute(stmt)
-
                 if self.simplify_debts:
                     total_borrowed_query = (
                         self.transaction.query(Transaction.debtor_id, func.sum(Transaction.amount).label("total"))
@@ -72,7 +71,7 @@ class SettleUpService:
                     users_stmt = (
                         select(
                             User,
-                            coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)
+                            func.sum(coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)).label("net")
                         )
                         .join(User.groups)
                         .outerjoin(total_borrowed_query, total_borrowed_query.c.debtor_id == User.id)

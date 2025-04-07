@@ -107,7 +107,6 @@ class Group(Base):
     )
     expenses: orm.Mapped[list["Expense"]] = orm.relationship(
         back_populates="group",
-        cascade="all, delete-orphan"
     )
 
 
@@ -181,7 +180,7 @@ class Expense(Base):
     payment: orm.Mapped[bool] = orm.mapped_column(types.Boolean)
     isDeleted: orm.Mapped[bool] = orm.mapped_column(types.Boolean, default=False)
     group_id: orm.Mapped[int] = orm.mapped_column(
-        types.Integer, schema.ForeignKey("groups.id"), nullable=True
+        types.Integer, schema.ForeignKey("groups.id", ondelete="SET NULL"), nullable=True
     )
     amount: orm.Mapped[float] = orm.mapped_column(types.DECIMAL, nullable=False)
     currency: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)

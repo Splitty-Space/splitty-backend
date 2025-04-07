@@ -44,10 +44,11 @@ def groups(user_id: int) -> GroupResponse:
             .subquery()
         )
 
-        # Create the CTE (Common Table Expression) for the amounts
         amount_cte = (
             select(
                 Group.id.label('group_id'),
+                func.coalesce(total_borrowed_query.c.total, 0).label('owes'),
+                func.coalesce(total_lent_query.c.total, 0).label('owe'),
                 (func.coalesce(total_borrowed_query.c.total, 0) - func.coalesce(total_lent_query.c.total, 0)).label(
                     "amount")
             )
@@ -57,11 +58,11 @@ def groups(user_id: int) -> GroupResponse:
             .cte("amount_cte")
         )
 
-        # Create the main statement with priority case and joins
         stmt = (
             select(
                 Group,
-                amount_cte.c.amount,
+                amount_cte.c.owes,
+                amount_cte.c.owe,
                 case(
                     (amount_cte.c.amount < 0, 1),
                     (amount_cte.c.amount > 0, 2),
@@ -175,7 +176,7 @@ def get_group(user_id: int, group_id: int) -> GroupInfo:
             users_stmt = (
                 select(
                     User,
-                    coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)
+                    func.sum(coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)).label("net")
                 )
                 .join(User.groups)
                 .outerjoin(total_borrowed_query, total_borrowed_query.c.debtor_id == User.id)
@@ -201,13 +202,22 @@ def get_group(user_id: int, group_id: int) -> GroupInfo:
                 for transaction in payment_graph
             ]
         else:
+            borrower_alias = aliased(User)
+            debtor_alias = aliased(User)
+
             transactions_smtp = (
-                select(Transaction, Transaction.borrower_id, Transaction.debtor_id, func.sum(Transaction.amount))
+                select(
+                    borrower_alias,
+                    debtor_alias,
+                    func.sum(Transaction.amount).label("total")
+                )
                 .select_from(Transaction)
                 .join(Expense)
+                .join(borrower_alias, Transaction.borrower_id == borrower_alias.id)
+                .join(debtor_alias, Transaction.debtor_id == debtor_alias.id)
                 .filter(Expense.group_id == group_id, Transaction.settled.is_(False),
                         (Transaction.debtor_id == user_id) | (Transaction.borrower_id == user_id))
-                .group_by(Transaction.borrower_id, Transaction.debtor_id)
+                .group_by(borrower_alias.id, debtor_alias.id)
             )
 
             transactions = transaction.execute(transactions_smtp).fetchall()
@@ -215,14 +225,21 @@ def get_group(user_id: int, group_id: int) -> GroupInfo:
             total = [
                 TransactionInfo(
                     id=0,
-                    borrower=UserInfo(id=transaction[0].debtor.id, username=transaction[0].debtor.username,
-                                      name=transaction[0].debtor.fullname, photo_url=transaction[0].debtor.photo_url),
-                    debtor=UserInfo(id=transaction[0].borrower.id, username=transaction[0].borrower.username,
-                                    name=transaction[0].borrower.fullname,
-                                    photo_url=transaction[0].borrower.photo_url),
-                    amount=round(transaction[3], 2),
+                    borrower=UserInfo(
+                        id=row[0].id,
+                        username=row[0].username,
+                        name=row[0].fullname,
+                        photo_url=row[0].photo_url
+                    ),
+                    debtor=UserInfo(
+                        id=row[1].id,
+                        username=row[1].username,
+                        name=row[1].fullname,
+                        photo_url=row[1].photo_url
+                    ),
+                    amount=round(row[2], 2)
                 )
-                for transaction in transactions
+                for row in transactions
             ]
         return GroupInfo(
             id=group.id,

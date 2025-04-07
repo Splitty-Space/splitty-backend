@@ -32,6 +32,19 @@ def add_expense(create_expense: CreateExpense):
         if not user:
             raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
 
+        if create_expense.group_id:
+            group = (
+                transaction.query(Group)
+                .join(User.groups)
+                .filter(User.id == create_expense.user_id, Group.id == create_expense.group_id)
+                .first()
+            )
+
+            if not group:
+                raise fastapi.HTTPException(status_code=404, detail="Group not found")
+        else:
+            group = None
+
         expense = Expense(
             description=create_expense.description, group_id=create_expense.group_id,
             amount=round(create_expense.amount, 2),
@@ -83,7 +96,7 @@ def add_expense(create_expense: CreateExpense):
         transactions_dict = [
             {'debtor_id': expense_transaction.debtor_id, 'borrower_id': expense_transaction.borrower_id} for
             expense_transaction in transactions]
-        group_simplify_debts = expense.group.simplify_debts if expense.group else None
+        group_simplify_debts = group.simplify_debts if group else None
         transaction.flush()
 
         new_activity = Activity(
@@ -338,8 +351,8 @@ def get_expense(user_id: int, expense_id: int) -> ExpenseInfo:
         expense_stmt = (
             select(
                 Expense,
-                coalesce(total_borrowed_expense_query.c.total, 0),
-                coalesce(total_lent_expense_query.c.total, 0)
+                func.sum(coalesce(total_borrowed_expense_query.c.total, 0)),
+                func.sum(coalesce(total_lent_expense_query.c.total, 0))
             )
             .select_from(Expense)
             .outerjoin(total_borrowed_expense_query, total_borrowed_expense_query.c.expense_id == Expense.id)
@@ -413,6 +426,12 @@ def get_expense(user_id: int, expense_id: int) -> ExpenseInfo:
 @router.get("/expenses")
 def get_expenses(user_id: int, page: int, limit: int, friend_id: Optional[int] = None,
                  group_id: Optional[int] = None) -> ExpensesResponse:
+    if friend_id is None and group_id is None:
+        raise fastapi.HTTPException(
+            status_code=422,
+            detail="Either friend_id or group_id must be provided."
+        )
+
     with (orm.Session.begin() as transaction):
         user = transaction.query(User).get(user_id)
 
@@ -438,8 +457,8 @@ def get_expenses(user_id: int, page: int, limit: int, friend_id: Optional[int] =
             expenses_stmt = (
                 select(
                     Expense,
-                    coalesce(total_borrowed_expense_query.c.total, 0),
-                    coalesce(total_lent_expense_query.c.total, 0),
+                    func.sum(coalesce(total_borrowed_expense_query.c.total, 0)),
+                    func.sum(coalesce(total_lent_expense_query.c.total, 0)),
                     ~Expense.transactions.any((Transaction.settled.is_(False)) & (
                             (Transaction.debtor_id == user_id) | (Transaction.borrower_id == user_id)))
                 )
@@ -473,8 +492,8 @@ def get_expenses(user_id: int, page: int, limit: int, friend_id: Optional[int] =
             expenses_stmt = (
                 select(
                     Expense,
-                    coalesce(total_borrowed_expense_query.c.total, 0),
-                    coalesce(total_lent_expense_query.c.total, 0),
+                    func.sum(coalesce(total_borrowed_expense_query.c.total, 0)),
+                    func.sum(coalesce(total_lent_expense_query.c.total, 0)),
                     ~Expense.transactions.any((Transaction.settled.is_(False)) & (
                             (Transaction.debtor_id == user_id) | (Transaction.borrower_id == user_id)))
                 )

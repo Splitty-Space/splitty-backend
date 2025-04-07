@@ -16,7 +16,7 @@ class TotalCalculator:
     def call(self):
         if self.group_id:
             total_borrowed_query = (
-                self.transaction.query(Expense.currency, Transaction.debtor_id,
+                self.transaction.query(Expense.currency,
                                        func.sum(Transaction.amount).label("total"))
                 .select_from(Transaction)
                 .join(Expense)
@@ -25,17 +25,17 @@ class TotalCalculator:
                 .subquery()
             )
             total_lent_query = (
-                self.transaction.query(Expense.currency, Transaction.borrower_id,
-                                       func.sum(Transaction.amount).label("total"), Expense.group_id == self.group_id)
+                self.transaction.query(Expense.currency,
+                                       func.sum(Transaction.amount).label("total"))
                 .select_from(Transaction)
                 .join(Expense)
-                .filter(Transaction.debtor_id == self.user_id, Transaction.settled.is_(False))
+                .filter(Transaction.debtor_id == self.user_id, Transaction.settled.is_(False), Expense.group_id == self.group_id)
                 .group_by(Expense.currency)
                 .subquery()
             )
         else:
             total_borrowed_query = (
-                self.transaction.query(Expense.currency, Transaction.debtor_id, func.sum(Transaction.amount).label("total"))
+                self.transaction.query(Expense.currency, func.sum(Transaction.amount).label("total"))
                 .select_from(Transaction)
                 .join(Expense)
                 .filter(Transaction.borrower_id == self.user_id, Transaction.settled.is_(False))
@@ -43,8 +43,7 @@ class TotalCalculator:
                 .subquery()
             )
             total_lent_query = (
-                self.transaction.query(Expense.currency, Transaction.borrower_id,
-                                       func.sum(Transaction.amount).label("total"))
+                self.transaction.query(Expense.currency, func.sum(Transaction.amount).label("total"))
                 .select_from(Transaction)
                 .join(Expense)
                 .filter(Transaction.debtor_id == self.user_id, Transaction.settled.is_(False))
