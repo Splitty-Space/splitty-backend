@@ -23,7 +23,7 @@ def upgrade() -> None:
     op.alter_column('users', 'referral_code',
                existing_type=sa.VARCHAR(length=10),
                type_=sa.String(length=36),
-               nullable=False)
+               nullable=True)
     # ### end Alembic commands ###
 
 

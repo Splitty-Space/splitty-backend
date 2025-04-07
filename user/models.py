@@ -47,9 +47,9 @@ class User(Base):
     )
 
     referral_code: orm.Mapped[str] = orm.mapped_column(
-        types.String(length=11),
+        types.String(length=36),
         unique=True,
-        nullable=False,
+        nullable=True,
     )
 
     is_admin: orm.Mapped[bool] = orm.mapped_column(types.Boolean, default=sql.false())
