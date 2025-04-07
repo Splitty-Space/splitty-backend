@@ -344,6 +344,8 @@ def register_user(create_user: CreateUser):
             refer = transaction.query(User).filter_by(referral_code=create_user.referred_by_code).first()
             if refer:
                 refer_id = refer.id
+        else:
+            refer = None
 
         if user:
             user.username = create_user.username
