@@ -16,4 +16,4 @@ COPY . .
 # Expose the port on which the application will run
 EXPOSE 8000
 
-ENTRYPOINT ["sh", "-c", "uvicorn app.app:app --port 8000 --host 0.0.0.0"]
+ENTRYPOINT ["sh", "-c", "alembic upgrade head && uvicorn app.app:app --port 8000 --host 0.0.0.0"]
