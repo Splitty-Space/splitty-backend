@@ -17,8 +17,8 @@ user_group_table = Table(
 friends_association_table = Table(
     "friends",
     Base.metadata,
-    Column("user_id", types.Integer, ForeignKey("users.id")),
-    Column("friend_id", types.Integer, ForeignKey("users.id")),
+    Column("user_id", types.BigInteger, ForeignKey("users.id")),
+    Column("friend_id", types.BigInteger, ForeignKey("users.id")),
     Column("created_at", types.DateTime, default=datetime.datetime.utcnow, nullable=False),
 )
 
@@ -36,7 +36,7 @@ class User(Base):
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
 
     referred_by: orm.Mapped[Optional[int]] = orm.mapped_column(
-        types.Integer, ForeignKey('users.id'), nullable=True
+        types.BigInteger, ForeignKey('users.id'), nullable=True
     )
 
     referrer: orm.Mapped[Optional["User"]] = orm.relationship(
@@ -96,7 +96,7 @@ class Group(Base):
     name: orm.Mapped[str] = orm.mapped_column(types.VARCHAR, nullable=False)
     kind: orm.Mapped[str] = orm.mapped_column(types.String)
     user_id: orm.Mapped[int] = orm.mapped_column(
-        types.Integer, schema.ForeignKey("users.id"), nullable=False
+        types.BigInteger, schema.ForeignKey("users.id"), nullable=False
     )
     simplify_debts: orm.Mapped[bool] = orm.mapped_column(types.Boolean, nullable=False, default=False)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
@@ -115,7 +115,7 @@ class ExpenseUser(Base):
 
     id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
     user_id: orm.Mapped[int] = orm.mapped_column(
-        types.Integer, schema.ForeignKey("users.id"), nullable=False
+        types.BigInteger, schema.ForeignKey("users.id"), nullable=False
     )
     expense_id: orm.Mapped[int] = orm.mapped_column(
         types.Integer, schema.ForeignKey("expenses.id"), nullable=False
@@ -141,10 +141,10 @@ class Transaction(Base):
 
     id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
     debtor_id: orm.Mapped[int] = orm.mapped_column(
-        types.Integer, schema.ForeignKey("users.id"), nullable=False
+        types.BigInteger, schema.ForeignKey("users.id"), nullable=False
     )
     borrower_id: orm.Mapped[int] = orm.mapped_column(
-        types.Integer, schema.ForeignKey("users.id"), nullable=False
+        types.BigInteger, schema.ForeignKey("users.id"), nullable=False
     )
     expense_id: orm.Mapped[int] = orm.mapped_column(
         types.Integer, schema.ForeignKey("expenses.id"), nullable=True
@@ -220,7 +220,7 @@ class Feed(Base):
 
     id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
     user_id: orm.Mapped[int] = orm.mapped_column(
-        types.Integer, schema.ForeignKey("users.id"), nullable=False
+        types.BigInteger, schema.ForeignKey("users.id"), nullable=False
     )
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
 
@@ -244,7 +244,7 @@ class Activity(Base):
     # activity_type: orm.Mapped[str] = orm.mapped_column(types.Enum(ActivityType), nullable=False)
     activity_type: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
     performed_by_user_id: orm.Mapped[int] = orm.mapped_column(
-        types.Integer, schema.ForeignKey("users.id"), nullable=False
+        types.BigInteger, schema.ForeignKey("users.id"), nullable=False
     )
     expenses_id: orm.Mapped[int] = orm.mapped_column(
         types.Integer, schema.ForeignKey("expenses.id"), nullable=False
@@ -262,7 +262,7 @@ class ActivityUser(Base):
 
     id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
     user_id: orm.Mapped[int] = orm.mapped_column(
-        types.Integer, schema.ForeignKey("users.id"), nullable=False
+        types.BigInteger, schema.ForeignKey("users.id"), nullable=False
     )
     activity_id: orm.Mapped[int] = orm.mapped_column(
         types.Integer, schema.ForeignKey("activity.id"), nullable=False
