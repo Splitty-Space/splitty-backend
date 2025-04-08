@@ -26,7 +26,7 @@ friends_association_table = Table(
 class User(Base):
     __tablename__ = "users"
 
-    id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True, unique=True)
+    id: orm.Mapped[int] = orm.mapped_column(types.BigInteger, primary_key=True, unique=True)
     fullname: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=False)
     username: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=True)
     default_currency: orm.Mapped[str] = orm.mapped_column(types.String, nullable=False)
