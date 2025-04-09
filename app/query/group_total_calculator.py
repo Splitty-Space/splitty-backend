@@ -33,14 +33,26 @@ class GroupTotalCalculator:
             .subquery()
         )
 
-        total = (
-            self.transaction.query(Expense.currency, func.sum(
-                coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)).label('total'))
+        expense_currencies = (
+            self.transaction.query(Expense.currency)
             .select_from(Transaction)
             .join(Expense)
-            .outerjoin(total_borrowed_query, total_borrowed_query.c.currency == Expense.currency)
-            .outerjoin(total_lent_query, total_lent_query.c.currency == Expense.currency)
-            .group_by(Expense.currency).all()
+            .filter(
+                Transaction.settled.is_(False),
+                (Transaction.borrower_id == self.user_id) | (Transaction.debtor_id == self.user_id),
+                Expense.group_id == self.group_id
+            )
+            .group_by(Expense.currency).subquery()
+        )
+
+        total = (
+            self.transaction.query(expense_currencies.c.currency,
+                                   coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total,
+                                                                                        0).label("net"))
+            .select_from(expense_currencies)
+            .outerjoin(total_borrowed_query, total_borrowed_query.c.currency == expense_currencies.c.currency)
+            .outerjoin(total_lent_query, total_lent_query.c.currency == expense_currencies.c.currency)
+            .all()
         )
 
         return total
