@@ -328,15 +328,20 @@ def register_user(create_user: CreateUser):
     with orm.Session.begin() as transaction:
         user = transaction.query(User).filter_by(id=create_user.user_id).first()
 
-        photo_data = None
-
         if create_user.photo_url != "":
             try:
                 response = requests.get(create_user.photo_url)
                 response.raise_for_status()
                 photo_data = response.content
             except Exception as e:
-                logging.error(f"Error loading image: {e}")
+                logging.error(f"Error loading image from URL: {e}")
+                photo_data = None
+        else:
+            try:
+                with open("icons/default_avatar.png", "rb") as f:
+                    photo_data = f.read()
+            except Exception as e:
+                logging.error(f"Error loading default avatar: {e}")
                 photo_data = None
 
         refer_id = None
