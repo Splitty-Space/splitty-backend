@@ -324,7 +324,11 @@ def delete_friend(delete_friend: DeleteFriend):
 
         if friend in user.friends:
             user.friends.remove(friend)
-            transaction.commit()
+
+        if user in friend.friends:
+            friend.friends.remove(user)
+
+        transaction.commit()
 
         return True
 
