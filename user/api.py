@@ -283,9 +283,6 @@ def add_friend(add_friend: AddFriend):
         first_user = transaction.query(User).filter_by(id=add_friend.user_id).first()
         second_user = transaction.query(User).filter_by(id=add_friend.friend_id).first()
 
-        logging.error(f"first_user = {first_user}")
-        logging.error(f"second_user = {second_user}")
-
         if not first_user or not second_user:
             raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
 
@@ -301,7 +298,6 @@ def add_friend(add_friend: AddFriend):
         )
         is_friends = transaction.execute(stmt).scalar()
         if is_friends is not None:
-            logging.error("Users are already friends")
             raise fastapi.HTTPException(
                 status.HTTP_409_CONFLICT, "Users are already friends"
             )
@@ -310,8 +306,6 @@ def add_friend(add_friend: AddFriend):
         second_user.friends.append(first_user)
 
         transaction.commit()
-
-        logging.error("add_friend commited")
 
         return True
 
@@ -338,8 +332,6 @@ def register_user(create_user: CreateUser):
     with orm.Session.begin() as transaction:
         user = transaction.query(User).filter_by(id=create_user.user_id).first()
 
-        logging.error(f"user = {user}")
-
         if create_user.photo_url != "":
             try:
                 response = requests.get(create_user.photo_url)
@@ -364,8 +356,6 @@ def register_user(create_user: CreateUser):
         else:
             refer = None
 
-        logging.error(f"refer_id = {refer_id}")
-
         if user:
             user.username = create_user.username
             user.fullname = create_user.fullname
@@ -385,8 +375,6 @@ def register_user(create_user: CreateUser):
             )
             transaction.add(user)
         transaction.commit()
-
-        logging.error("user commited")
 
         if refer_id:
             add_friend(AddFriend(create_user.user_id, friend_id=refer_id))
