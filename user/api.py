@@ -283,8 +283,8 @@ def add_friend(add_friend: AddFriend):
         first_user = transaction.query(User).filter_by(id=add_friend.user_id).first()
         second_user = transaction.query(User).filter_by(id=add_friend.friend_id).first()
 
-        logging.debug(f"first_user = {first_user}")
-        logging.debug(f"second_user = {second_user}")
+        logging.info(f"first_user = {first_user}")
+        logging.info(f"second_user = {second_user}")
 
         if not first_user or not second_user:
             raise fastapi.HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
@@ -301,7 +301,7 @@ def add_friend(add_friend: AddFriend):
         )
         is_friends = transaction.execute(stmt).scalar()
         if is_friends is not None:
-            logging.debug("Users are already friends")
+            logging.info("Users are already friends")
             raise fastapi.HTTPException(
                 status.HTTP_400_BAD_REQUEST, "Users are already friends"
             )
@@ -311,7 +311,7 @@ def add_friend(add_friend: AddFriend):
 
         transaction.commit()
 
-        logging.debug("add_friend commited")
+        logging.info("add_friend commited")
 
         return True
 
@@ -334,7 +334,7 @@ def register_user(create_user: CreateUser):
     with orm.Session.begin() as transaction:
         user = transaction.query(User).filter_by(id=create_user.user_id).first()
 
-        logging.debug(f"user = {user}")
+        logging.info(f"user = {user}")
 
         if create_user.photo_url != "":
             try:
@@ -360,7 +360,7 @@ def register_user(create_user: CreateUser):
         else:
             refer = None
 
-        logging.debug(f"refer_id = {refer_id}")
+        logging.info(f"refer_id = {refer_id}")
 
         if user:
             user.username = create_user.username
@@ -382,7 +382,7 @@ def register_user(create_user: CreateUser):
             transaction.add(user)
         transaction.commit()
 
-        logging.debug("user commited")
+        logging.info("user commited")
 
         if refer_id:
             add_friend(AddFriend(create_user.user_id, friend_id=refer_id))
