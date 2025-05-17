@@ -37,27 +37,31 @@ router = fastapi.APIRouter()
 BOT_TOKEN = os.getenv('TOKEN', "6933863270:AAHkqpT7_gj5LORo2B2wWY721dvCj_q7x2w")
 JWT_SECRET = os.getenv('JWT_SECRET')
 
+
 def verify_init_data(init_data: str) -> dict:
-    print("init_data = ", init_data)
+    # Парсим initData в словарь
+    data = dict(parse_qsl(init_data, keep_blank_values=True))
 
-    parts = dict(parse_qsl(init_data, keep_blank_values=True))
-    received_hash = parts.pop('hash', None)
+    received_hash = data.pop('hash', None)
+    if not received_hash:
+        raise HTTPException(400, 'Missing hash')
 
-    data_check = '\n'.join(f"{k}={v}" for k, v in sorted(parts.items()))
-    print("data_check = ", data_check)
-    secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
-    computed_hash = hmac.new(secret_key, data_check.encode(), hashlib.sha256).hexdigest()
+    # Telegram docs: формируем строку key=value\n...
+    data_check_string = '\n'.join(f"{k}={v}" for k, v in sorted(data.items()))
 
-    print("BOT_TOKEN = ", BOT_TOKEN)
-    print("BOT_TOKEN.encode() = ", BOT_TOKEN.encode())
-    print("secret_key = ", secret_key)
+    # Секрет = sha256(bot_token)
+    secret = hashlib.sha256(BOT_TOKEN.encode()).digest()
+    computed_hash = hmac.new(secret, data_check_string.encode(), hashlib.sha256).hexdigest()
 
-    print("received_hash = ", received_hash)
-    print("computed_hash = ", computed_hash)
+    print("=== VERIFY INIT DATA ===")
+    print("data_check_string:", data_check_string)
+    print("computed_hash:", computed_hash)
+    print("received_hash:", received_hash)
 
     if not hmac.compare_digest(computed_hash, received_hash):
-        raise HTTPException(status_code=401, detail='Invalid init_data signature')
-    return parts
+        raise HTTPException(401, 'Invalid init_data signature')
+
+    return data
 
 @router.post("/login")
 def login(authorization: str = Header(...)):
@@ -69,14 +73,6 @@ def login(authorization: str = Header(...)):
         raise HTTPException(status_code=400, detail='Invalid authorization header')
 
     user_data = verify_init_data(init_data)
-
-    # user = User(
-    #     id=int(user_data['id']),
-    #     first_name=user_data['first_name'],
-    #     last_name=user_data.get('last_name'),
-    #     username=user_data.get('username'),
-    #     language_code=user_data.get('language_code'),
-    # )
 
     access_token = jwt.encode(user_data.dict(), JWT_SECRET, algorithm="HS256")
     print("access_token = ", access_token)
