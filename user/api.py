@@ -48,6 +48,8 @@ def verify_init_data(init_data: str) -> dict:
     secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
     computed_hash = hmac.new(secret_key, data_check.encode(), hashlib.sha256).hexdigest()
 
+    print("BOT_TOKEN = ", BOT_TOKEN)
+    print("BOT_TOKEN.encode() = ", BOT_TOKEN.encode())
     print("secret_key = ", secret_key)
 
     print("received_hash = ", received_hash)
