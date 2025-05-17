@@ -34,7 +34,7 @@ from urllib.parse import parse_qsl
 router = fastapi.APIRouter()
 
 
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+BOT_TOKEN = os.getenv('TOKEN', "6933863270:AAHkqpT7_gj5LORo2B2wWY721dvCj_q7x2w")
 JWT_SECRET = os.getenv('JWT_SECRET')
 
 def verify_init_data(init_data: str) -> dict:
