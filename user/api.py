@@ -66,7 +66,7 @@ def verify_telegram_auth(data: dict) -> bool:
     return True
 
 @router.post("/auth")
-async def telegram_auth(auth: AuthData):
+async def telegram_auth(auth):
     print("auth = ", auth)
     payload = auth.dict()
     print("payload = ", payload)
