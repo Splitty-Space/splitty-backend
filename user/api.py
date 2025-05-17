@@ -37,14 +37,23 @@ router = fastapi.APIRouter()
 BOT_TOKEN = os.getenv('TOKEN', "6933863270:AAHkqpT7_gj5LORo2B2wWY721dvCj_q7x2w")
 SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
 
-class AuthData(BaseModel):
+class TelegramUser(BaseModel):
     id: int
-    first_name: str = None
+    first_name: str
     last_name: str = None
     username: str = None
     photo_url: str = None
-    auth_date: int
+    language_code: str = None
+    is_premium: bool = False
+    allows_write_to_pm: bool = False
+
+class AuthData(BaseModel):
+    auth_date: str
+    chat_type: str
+    chat_instance: str
     hash: str
+    signature: str
+    user: TelegramUser
 
 
 def verify_telegram_auth(data: dict) -> bool:
@@ -66,7 +75,7 @@ def verify_telegram_auth(data: dict) -> bool:
     return True
 
 @router.post("/auth")
-async def telegram_auth(auth):
+async def telegram_auth(auth: AuthData):
     print("auth = ", auth)
     payload = auth.dict()
     print("payload = ", payload)
