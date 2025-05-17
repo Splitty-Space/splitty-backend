@@ -2,14 +2,15 @@ from typing import Annotated, Optional
 import logging
 
 import os
-import jwt
+import time
 import fastapi
 import requests
 import hmac, hashlib
-from fastapi import Query, status, Header, HTTPException
+from fastapi import Query, status, HTTPException
 from sqlalchemy import select, sql, func, asc, case
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.functions import coalesce
+from pydantic import BaseModel
 
 from app import orm
 from app.query.friend_total_calculator import FriendTotalCalculator
@@ -29,55 +30,50 @@ from user.dtos import (
 )
 from user.models import User, friends_association_table, Transaction, Feed
 from utils.generate_referral_code import generate_referral_code
-from urllib.parse import parse_qsl
 
 router = fastapi.APIRouter()
 
 
 BOT_TOKEN = os.getenv('TOKEN', "6933863270:AAHkqpT7_gj5LORo2B2wWY721dvCj_q7x2w")
-JWT_SECRET = os.getenv('JWT_SECRET')
+SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
+
+class AuthData(BaseModel):
+    id: str
+    first_name: str = None
+    last_name: str = None
+    username: str = None
+    photo_url: str = None
+    auth_date: int
+    hash: str
 
 
-def verify_init_data(init_data: str) -> dict:
-    # Парсим initData в словарь
-    data = dict(parse_qsl(init_data, keep_blank_values=True))
+def verify_telegram_auth(data: dict) -> bool:
+    print("data = ", data)
+    # Extract hash
+    hash_to_check = data.pop("hash")
+    # Build data check string in alphabetical order
+    data_check = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
+    print("data_check = ", data_check)
+    # Compute HMAC-SHA256
+    hmac_hash = hmac.new(SECRET_KEY, data_check.encode(), hashlib.sha256).hexdigest()
+    print("hash_to_check = ", hash_to_check)
+    print("hmac_hash = ", hmac_hash)
+    # Check timing-safe and auth_date freshness
+    if not hmac.compare_digest(hmac_hash, hash_to_check):
+        return False
+    if time.time() - data.get("auth_date", 0) > 86400:
+        return False
+    return True
 
-    received_hash = data.pop('hash', None)
-    if not received_hash:
-        raise HTTPException(400, 'Missing hash')
-
-    # Telegram docs: формируем строку key=value\n...
-    data_check_string = '\n'.join(f"{k}={v}" for k, v in sorted(data.items()))
-
-    # Секрет = sha256(bot_token)
-    secret = hashlib.sha256(BOT_TOKEN.encode()).digest()
-    computed_hash = hmac.new(secret, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-    print("=== VERIFY INIT DATA ===")
-    print("data_check_string:", data_check_string)
-    print("computed_hash:", computed_hash)
-    print("received_hash:", received_hash)
-
-    if not hmac.compare_digest(computed_hash, received_hash):
-        raise HTTPException(401, 'Invalid init_data signature')
-
-    return data
-
-@router.post("/login")
-def login(authorization: str = Header(...)):
-    try:
-        scheme, init_data = authorization.split(' ', 1)
-        if scheme != 'Telegram':
-            raise ValueError()
-    except ValueError:
-        raise HTTPException(status_code=400, detail='Invalid authorization header')
-
-    user_data = verify_init_data(init_data)
-
-    access_token = jwt.encode(user_data.dict(), JWT_SECRET, algorithm="HS256")
-    print("access_token = ", access_token)
-
-    return {"access_token": access_token}
+@router.post("/auth")
+async def telegram_auth(auth: AuthData):
+    print("auth = ", auth)
+    payload = auth.dict()
+    print("payload = ", payload)
+    if not verify_telegram_auth(payload.copy()):
+        raise HTTPException(status_code=401, detail="Invalid Telegram auth data")
+    # At this point, auth is valid. Create or fetch user session...
+    return {"user_id": auth.id, "name": f"{auth.first_name} {auth.last_name}"}
 
 
 
