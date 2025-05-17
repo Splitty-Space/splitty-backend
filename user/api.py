@@ -38,7 +38,7 @@ BOT_TOKEN = os.getenv('TOKEN', "6933863270:AAHkqpT7_gj5LORo2B2wWY721dvCj_q7x2w")
 SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
 
 class AuthData(BaseModel):
-    id: str
+    id: int
     first_name: str = None
     last_name: str = None
     username: str = None
