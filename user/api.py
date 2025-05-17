@@ -39,16 +39,18 @@ JWT_SECRET = os.getenv('JWT_SECRET')
 
 def verify_init_data(init_data: str) -> dict:
     print("init_data = ", init_data)
-    # parts = dict(item.split('=') for item in init_data.split(';'))
+
     parts = dict(parse_qsl(init_data, keep_blank_values=True))
     received_hash = parts.pop('hash', None)
-    print("hash = ", hash)
 
     data_check = '\n'.join(f"{k}={v}" for k, v in sorted(parts.items()))
     print("data_check = ", data_check)
     secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
     computed_hash = hmac.new(secret_key, data_check.encode(), hashlib.sha256).hexdigest()
 
+    print("secret_key = ", secret_key)
+
+    print("received_hash = ", received_hash)
     print("computed_hash = ", computed_hash)
 
     if not hmac.compare_digest(computed_hash, received_hash):
