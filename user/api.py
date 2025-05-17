@@ -10,7 +10,7 @@ from fastapi import Query, status, HTTPException
 from sqlalchemy import select, sql, func, asc, case
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.functions import coalesce
-from pydantic import BaseModel
+#from pydantic import BaseModel
 
 from app import orm
 from app.query.friend_total_calculator import FriendTotalCalculator
@@ -37,7 +37,7 @@ router = fastapi.APIRouter()
 BOT_TOKEN = os.getenv('TOKEN', "6933863270:AAHkqpT7_gj5LORo2B2wWY721dvCj_q7x2w")
 SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
 
-class TelegramUser(BaseModel):
+class TelegramUser:
     id: int
     first_name: str
     last_name: str = None
@@ -47,7 +47,7 @@ class TelegramUser(BaseModel):
     is_premium: bool = False
     allows_write_to_pm: bool = False
 
-class AuthData(BaseModel):
+class AuthData:
     auth_date: str
     chat_type: str
     chat_instance: str
