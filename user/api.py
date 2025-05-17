@@ -37,12 +37,19 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 JWT_SECRET = os.getenv('JWT_SECRET')
 
 def verify_init_data(init_data: str) -> dict:
+    print("BOT_TOKEN = ", BOT_TOKEN)
+    print("JWT_SECRET = ", JWT_SECRET)
+    print("init_data = ", init_data)
     parts = dict(item.split('=') for item in init_data.split(';'))
     received_hash = parts.pop('hash')
+    print("hash = ", hash)
 
     data_check = '\n'.join(f"{k}={v}" for k, v in sorted(parts.items()))
+    print("data_check = ", data_check)
     secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
     computed_hash = hmac.new(secret_key, data_check.encode(), hashlib.sha256).hexdigest()
+
+    print("computed_hash = ", computed_hash)
 
     if not hmac.compare_digest(computed_hash, received_hash):
         raise HTTPException(status_code=401, detail='Invalid init_data signature')
@@ -68,6 +75,8 @@ def login(authorization: str = Header(...)):
     # )
 
     access_token = jwt.encode(user_data.dict(), JWT_SECRET, algorithm="HS256")
+    print("access_token = ", access_token)
+
     return {"access_token": access_token}
 
 
