@@ -1,9 +1,12 @@
 from typing import Annotated, Optional
 import logging
 
+import os
+import jwt
 import fastapi
 import requests
-from fastapi import Query, status
+import hmac, hashlib
+from fastapi import Query, status, Header, HTTPException
 from sqlalchemy import select, sql, func, asc, case
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.functions import coalesce
@@ -28,6 +31,45 @@ from user.models import User, friends_association_table, Transaction, Feed
 from utils.generate_referral_code import generate_referral_code
 
 router = fastapi.APIRouter()
+
+
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+JWT_SECRET = os.getenv('JWT_SECRET')
+
+def verify_init_data(init_data: str) -> dict:
+    parts = dict(item.split('=') for item in init_data.split(';'))
+    received_hash = parts.pop('hash')
+
+    data_check = '\n'.join(f"{k}={v}" for k, v in sorted(parts.items()))
+    secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
+    computed_hash = hmac.new(secret_key, data_check.encode(), hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(computed_hash, received_hash):
+        raise HTTPException(status_code=401, detail='Invalid init_data signature')
+    return parts
+
+@router.post("/login")
+def login(authorization: str = Header(...)):
+    try:
+        scheme, init_data = authorization.split(' ', 1)
+        if scheme != 'Telegram':
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(status_code=400, detail='Invalid authorization header')
+
+    user_data = verify_init_data(init_data)
+
+    # user = User(
+    #     id=int(user_data['id']),
+    #     first_name=user_data['first_name'],
+    #     last_name=user_data.get('last_name'),
+    #     username=user_data.get('username'),
+    #     language_code=user_data.get('language_code'),
+    # )
+
+    access_token = jwt.encode(user_data.dict(), JWT_SECRET, algorithm="HS256")
+    return {"access_token": access_token}
+
 
 
 @router.get("/friends")
