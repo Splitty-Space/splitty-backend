@@ -29,6 +29,7 @@ from user.dtos import (
 )
 from user.models import User, friends_association_table, Transaction, Feed
 from utils.generate_referral_code import generate_referral_code
+from urllib.parse import parse_qsl
 
 router = fastapi.APIRouter()
 
@@ -37,11 +38,10 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 JWT_SECRET = os.getenv('JWT_SECRET')
 
 def verify_init_data(init_data: str) -> dict:
-    print("BOT_TOKEN = ", BOT_TOKEN)
-    print("JWT_SECRET = ", JWT_SECRET)
     print("init_data = ", init_data)
-    parts = dict(item.split('=') for item in init_data.split(';'))
-    received_hash = parts.pop('hash')
+    # parts = dict(item.split('=') for item in init_data.split(';'))
+    parts = dict(parse_qsl(init_data, keep_blank_values=True))
+    received_hash = parts.pop('hash', None)
     print("hash = ", hash)
 
     data_check = '\n'.join(f"{k}={v}" for k, v in sorted(parts.items()))
