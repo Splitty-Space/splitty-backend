@@ -47,6 +47,8 @@ async def telegram_auth(auth: AuthData):
 
     print("init_data = ", init_data)
 
+    print("BOT_TOKEN = ", BOT_TOKEN)
+
     is_valid = init_data.validate(
         bot_token=BOT_TOKEN,
         lifetime=3600,
