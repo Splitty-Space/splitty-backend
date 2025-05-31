@@ -288,3 +288,7 @@ class ActivityDTO:
 class ActivityResponse:
     data: object
     meta: dict
+
+@dataclass
+class AuthData:
+    init_data_raw: str

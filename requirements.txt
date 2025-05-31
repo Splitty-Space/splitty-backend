@@ -26,3 +26,5 @@ celery[redis]
 telebot==0.0.5
 gunicorn==22.0.0
 psycopg2-binary==2.9.10
+init-data-py==0.2.6
+PyJWT==2.10.1

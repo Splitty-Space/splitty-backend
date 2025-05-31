@@ -1,16 +1,16 @@
 from typing import Annotated, Optional
 import logging
 
+import jwt
 import os
-import time
 import fastapi
 import requests
-import hmac, hashlib
+import hashlib
 from fastapi import Query, status, HTTPException
 from sqlalchemy import select, sql, func, asc, case
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.functions import coalesce
-from pydantic import BaseModel
+from init_data_py import InitData
 
 from app import orm
 from app.query.friend_total_calculator import FriendTotalCalculator
@@ -27,6 +27,7 @@ from user.dtos import (
     FriendsResponse,
     DebtInfo,
     FeedResponse,
+    AuthData,
 )
 from user.models import User, friends_association_table, Transaction, Feed
 from utils.generate_referral_code import generate_referral_code
@@ -37,52 +38,30 @@ router = fastapi.APIRouter()
 BOT_TOKEN = os.getenv('TOKEN', "6933863270:AAHkqpT7_gj5LORo2B2wWY721dvCj_q7x2w")
 SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
 
-class TelegramUser(BaseModel):
-    id: int
-    first_name: str
-    last_name: str = None
-    username: str = None
-    photo_url: str = None
-    language_code: str = None
-    is_premium: bool = False
-    allows_write_to_pm: bool = False
-
-class AuthData(BaseModel):
-    auth_date: str
-    chat_type: str
-    chat_instance: str
-    hash: str
-    signature: str
-    user: TelegramUser
-
-
-def verify_telegram_auth(data: dict) -> bool:
-    print("data = ", data)
-    # Extract hash
-    hash_to_check = data.pop("hash")
-    # Build data check string in alphabetical order
-    data_check = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
-    print("data_check = ", data_check)
-    # Compute HMAC-SHA256
-    hmac_hash = hmac.new(SECRET_KEY, data_check.encode(), hashlib.sha256).hexdigest()
-    print("hash_to_check = ", hash_to_check)
-    print("hmac_hash = ", hmac_hash)
-    # Check timing-safe and auth_date freshness
-    if not hmac.compare_digest(hmac_hash, hash_to_check):
-        return False
-    if time.time() - data.get("auth_date", 0) > 86400:
-        return False
-    return True
-
 @router.post("/auth")
 async def telegram_auth(auth: AuthData):
-    print("auth = ", auth)
-    payload = auth.dict()
-    print("payload = ", payload)
-    if not verify_telegram_auth(payload.copy()):
+    print("auth = ", auth.init_data_raw)
+
+
+    init_data = InitData.parse(auth.init_data_raw)
+
+    print("init_data = ", init_data)
+
+    is_valid = init_data.validate(
+        bot_token=BOT_TOKEN,
+        lifetime=3600,
+    )
+
+    print("is_valid = ", is_valid)
+
+    if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid Telegram auth data")
-    # At this point, auth is valid. Create or fetch user session...
-    return {"user_id": auth.id, "name": f"{auth.first_name} {auth.last_name}"}
+
+    token = jwt.encode(init_data, SECRET_KEY, algorithm='HS256')
+
+    print("token = ", token)
+
+    return { token }
 
 
 
