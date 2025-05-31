@@ -139,7 +139,11 @@ def friends(user_id: int, search_name: Optional[str] = None) -> FriendsResponse:
 
         payload = {"user_id": user_id, "text": "SOSAL?"}
 
-        response = requests.post('http://stage-splitty-bot:5000/send_message', data=payload)
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post('http://stage-splitty-bot:5000/send_message', json=payload, headers=headers)
         print("response = ", response)
 
         return FriendsResponse(
