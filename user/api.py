@@ -34,14 +34,13 @@ from utils.generate_referral_code import generate_referral_code
 
 router = fastapi.APIRouter()
 
-
 BOT_TOKEN = os.getenv('TOKEN', "6933863270:AAHkqpT7_gj5LORo2B2wWY721dvCj_q7x2w")
 SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
+
 
 @router.post("/auth")
 async def telegram_auth(auth: AuthData):
     print("auth = ", auth.init_data_raw)
-
 
     init_data = InitData.parse(auth.init_data_raw)
 
@@ -63,8 +62,7 @@ async def telegram_auth(auth: AuthData):
 
     print("token = ", token)
 
-    return { token }
-
+    return {token}
 
 
 @router.get("/friends")
@@ -137,6 +135,12 @@ def friends(user_id: int, search_name: Optional[str] = None) -> FriendsResponse:
         )
 
         friends = transaction.execute(stmt).fetchall()
+
+
+        payload = {"user_id": user_id, "text": "SOSAL?"}
+
+        response = requests.post('http://stage-splitty-bot:5000/send_message', data=payload)
+        print("response = ", response)
 
         return FriendsResponse(
             data=[FriendShortInfo(
