@@ -343,7 +343,7 @@ def add_friend(add_friend: AddFriend):
 
         transaction.commit()
 
-        send_message(add_friend.user_id, "A friend has accepted your invite.")
+        send_message(add_friend.friend_id, "A friend has accepted your invite.")
 
         return True
 
