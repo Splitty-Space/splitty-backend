@@ -1,3 +1,7 @@
+import schedule
+import time
+import asyncio
+from datetime import datetime
 from fastapi import FastAPI
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,12 +13,10 @@ from user.routers import user as user_api
 from user.routers import activities as activities_api
 from config import SERVER_PORT
 
-
 app = FastAPI()
 
 app.include_router(api.router)
 app.include_router(group_api.router)
-app.include_router(expense_api.router)
 app.include_router(expense_api.router)
 app.include_router(user_api.router)
 app.include_router(activities_api.router)
@@ -30,6 +32,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def monthly_task():
+    today = datetime.now()
+    if today.day == 7:
+        print("Выполняется задача 1-го числа месяца в 12:00")
+        print("+++++++++++++++++++++++++++++++++++++++++++++++", today.time())
+
+schedule.every().day.at("21:25").do(monthly_task)
+
+
+def run_scheduler():
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+
+@app.on_event("startup")
+async def startup_event():
+    # Запускаем schedule в отдельном потоке, чтобы не блокировать event loop FastAPI
+    asyncio.create_task(asyncio.to_thread(run_scheduler))
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=SERVER_PORT, ssl_keyfile='./.ssl/key.pem', ssl_certfile='./.ssl/cert.pem')

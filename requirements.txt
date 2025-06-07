@@ -29,3 +29,4 @@ psycopg2-binary==2.9.10
 init-data-py==0.2.6
 PyJWT==2.10.1
 aiohttp==3.12.10
+schedule==1.2.2
