@@ -125,6 +125,15 @@ def add_expense(create_expense: CreateExpense):
 
         transaction.commit()
 
+
+    print("create_expense.users = ", create_expense.users)
+    print("create_expense.user_id = ", create_expense.user_id)
+
+    for user_id in create_expense.users:
+        if user_id != create_expense.user_id:
+            print("user_id = ", user_id)
+            send_message(user_id, "You got new expense. Check it out in app!")
+
     return get_expense(create_expense.user_id, expense_id)
 
 
@@ -329,14 +338,6 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
             SettleUpService(transaction, edit_expense.group_id, new_transactions_dict, new_group_simplify_debts).call()
 
         transaction.commit()
-
-    print("edit_expense.users = ", edit_expense.users)
-    print("edit_expense.user_id = ", edit_expense.user_id)
-
-    for user_id in edit_expense.users:
-        if user_id != edit_expense.user_id:
-            print("user_id = ", user_id)
-            send_message(user_id, "You got new expense. Check it out in app!")
 
     return True
 
