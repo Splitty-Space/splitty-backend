@@ -125,13 +125,14 @@ def add_expense(create_expense: CreateExpense):
 
         transaction.commit()
 
+
+    if create_expense.payment:
+        message = "A new settle up was made. Check it out in app!"
+    else:
+        message = "You got new expense. Check it out in app!"
+
     for user_id in create_expense.users:
         if user_id != create_expense.user_id:
-            if create_expense.payment:
-                message = "A new settle up was made. Check it out in app!"
-            else:
-                message = "You got new expense. Check it out in app!"
-
             send_message(user_id, message)
 
     return get_expense(create_expense.user_id, expense_id)
@@ -184,10 +185,14 @@ def delete_expense(expense_id: int, user_id: int):
 
         expense.isDeleted = True
         transaction.add(expense)
+
+        users = expense.users
+        expense_user_id = expense.user_id
+
         transaction.commit()
 
-        for user_id in expense.users:
-            if user_id != expense.user_id:
+        for user_id in users:
+            if user_id != expense_user_id:
                 send_message(user_id, "Expense was deleted. Check it out in app!")
 
     return True
