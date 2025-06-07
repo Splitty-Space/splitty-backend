@@ -137,14 +137,14 @@ def friends(user_id: int, search_name: Optional[str] = None) -> FriendsResponse:
         friends = transaction.execute(stmt).fetchall()
 
 
-        payload = {"user_id": user_id, "text": "SOSAL?"}
-
-        headers = {
-            "Content-Type": "application/json"
-        }
-
-        response = requests.post('http://stage-splitty-bot:5000/send_message', json=payload, headers=headers)
-        print("response = ", response)
+        # payload = {"user_id": user_id, "text": "SOSAL?"}
+        #
+        # headers = {
+        #     "Content-Type": "application/json"
+        # }
+        #
+        # response = requests.post('http://stage-splitty-bot:5000/send_message', json=payload, headers=headers)
+        # print("response = ", response)
 
         return FriendsResponse(
             data=[FriendShortInfo(
