@@ -20,6 +20,7 @@ from user.models import User, Expense, Transaction, Group, ExpenseUser, Activity
 from utils.calculate_user_balance import calculate_user_balances
 from utils.deep_dict_diff import deep_dict_diff
 from utils.make_payment_graph import make_payment_graph
+from utils.send_message import send_message
 
 router = fastapi.APIRouter()
 
@@ -328,6 +329,11 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
             SettleUpService(transaction, edit_expense.group_id, new_transactions_dict, new_group_simplify_debts).call()
 
         transaction.commit()
+
+        for user_id in edit_expense.users:
+            if user_id != edit_expense.user_id:
+                send_message(user_id, "You got new expense. Check it out in app!")
+
     return True
 
 
