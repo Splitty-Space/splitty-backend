@@ -183,8 +183,7 @@ def delete_expense(expense_id: int, user_id: int):
         ]
         transaction.add_all(activity_users)
 
-        users = expense.users
-        expense_user_id = expense.user_id
+        users = expense.expense_users
 
         transaction.commit()
 
@@ -193,12 +192,10 @@ def delete_expense(expense_id: int, user_id: int):
         transaction.add(expense)
         transaction.commit()
 
-    print("users === ", users)
-    print("expense_user_id === ", expense_user_id)
-
-    for user_id in users:
-        if user_id != expense_user_id:
-            send_message(user_id, "Expense was deleted. Check it out in app!")
+    for user in users:
+        print("+++++++++++ user.id === ", user.id)
+        if user_id != user.id:
+            send_message(user.id, "Expense was deleted. Check it out in app!")
 
     return True
 
