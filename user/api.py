@@ -31,6 +31,7 @@ from user.dtos import (
 )
 from user.models import User, friends_association_table, Transaction, Feed
 from utils.generate_referral_code import generate_referral_code
+from utils.send_message import send_message
 
 router = fastapi.APIRouter()
 
@@ -135,16 +136,6 @@ def friends(user_id: int, search_name: Optional[str] = None) -> FriendsResponse:
         )
 
         friends = transaction.execute(stmt).fetchall()
-
-
-        # payload = {"user_id": user_id, "text": "SOSAL?"}
-        #
-        # headers = {
-        #     "Content-Type": "application/json"
-        # }
-        #
-        # response = requests.post('http://stage-splitty-bot:5000/send_message', json=payload, headers=headers)
-        # print("response = ", response)
 
         return FriendsResponse(
             data=[FriendShortInfo(
@@ -351,6 +342,8 @@ def add_friend(add_friend: AddFriend):
         second_user.friends.append(first_user)
 
         transaction.commit()
+
+        send_message(add_friend.user_id, "A friend has accepted your invite.")
 
         return True
 
