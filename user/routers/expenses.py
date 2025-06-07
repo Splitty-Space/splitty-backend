@@ -330,8 +330,12 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
 
         transaction.commit()
 
+        print("edit_expense.users = ", edit_expense.users)
+        print("edit_expense.user_id = ", edit_expense.user_id)
+
         for user_id in edit_expense.users:
             if user_id != edit_expense.user_id:
+                print("user_id = ", user_id)
                 send_message(user_id, "You got new expense. Check it out in app!")
 
     return True
