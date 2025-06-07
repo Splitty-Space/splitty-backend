@@ -183,19 +183,23 @@ def delete_expense(expense_id: int, user_id: int):
         ]
         transaction.add_all(activity_users)
 
-        users = expense.expense_users
-
         transaction.commit()
 
     with orm.Session.begin() as transaction:
+        expense = (
+            transaction.query(Expense)
+            .filter(Expense.id == expense_id)
+            .first()
+        )
         expense.isDeleted = True
+
+        for user in expense.expense_users:
+            print("+++++++++++ user.id === ", user.user_id)
+            if user_id != user.user_id:
+                send_message(user.user_id, "Expense was deleted. Check it out in app!")
+
         transaction.add(expense)
         transaction.commit()
-
-    for user in users:
-        print("+++++++++++ user.id === ", user.id)
-        if user_id != user.id:
-            send_message(user.id, "Expense was deleted. Check it out in app!")
 
     return True
 
