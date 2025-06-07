@@ -125,14 +125,14 @@ def add_expense(create_expense: CreateExpense):
 
         transaction.commit()
 
-
-    print("create_expense.users = ", create_expense.users)
-    print("create_expense.user_id = ", create_expense.user_id)
-
     for user_id in create_expense.users:
         if user_id != create_expense.user_id:
-            print("user_id = ", user_id)
-            send_message(user_id, "You got new expense. Check it out in app!")
+            if create_expense.payment:
+                message = "A new settle up was made. Check it out in app!"
+            else:
+                message = "You got new expense. Check it out in app!"
+
+            send_message(user_id, message)
 
     return get_expense(create_expense.user_id, expense_id)
 
@@ -182,12 +182,13 @@ def delete_expense(expense_id: int, user_id: int):
         ]
         transaction.add_all(activity_users)
 
-        transaction.commit()
-
-    with orm.Session.begin() as transaction:
         expense.isDeleted = True
         transaction.add(expense)
         transaction.commit()
+
+        for user_id in expense.users:
+            if user_id != expense.user_id:
+                send_message(user_id, "Expense was deleted. Check it out in app!")
 
     return True
 
@@ -338,6 +339,10 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
             SettleUpService(transaction, edit_expense.group_id, new_transactions_dict, new_group_simplify_debts).call()
 
         transaction.commit()
+
+    for user_id in edit_expense.users:
+        if user_id != edit_expense.user_id:
+            send_message(user_id, "Expense was updated. Check it out in app!")
 
     return True
 
