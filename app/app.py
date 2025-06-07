@@ -12,6 +12,7 @@ from user.routers import expenses as expense_api
 from user.routers import user as user_api
 from user.routers import activities as activities_api
 from config import SERVER_PORT
+from utils.send_message import send_message
 
 app = FastAPI()
 
@@ -35,12 +36,14 @@ app.add_middleware(
 
 
 def monthly_task():
+    print("monthly_task")
     today = datetime.now()
     if today.day == 7:
-        print("Выполняется задача 1-го числа месяца в 12:00")
+        print("***********************************************************************")
         print("+++++++++++++++++++++++++++++++++++++++++++++++", today.time())
+        send_message(254960854, "Monthly Report")
 
-schedule.every().day.at("21:25").do(monthly_task)
+schedule.every().day.at("19:40").do(monthly_task)
 
 
 def run_scheduler():
