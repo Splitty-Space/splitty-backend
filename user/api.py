@@ -29,6 +29,7 @@ from user.dtos import (
     DebtInfo,
     FeedResponse,
     AuthData,
+    MessageRequest,
 )
 from user.models import User, friends_association_table, Transaction, Feed, UserMessage
 from utils.generate_referral_code import generate_referral_code
@@ -440,13 +441,6 @@ def feeds(user_id: int, page: int, limit: int) -> FeedResponse:
             ))
             unique_years.add(feed.created_at.year)
         return FeedResponse(data=feed_infos, meta={'has_more': has_more, 'years': unique_years})
-
-
-
-class MessageRequest():
-    user_id: int
-    message: str
-    date: int
 
 @router.post("/sendMessage")
 def send_message(request: MessageRequest):

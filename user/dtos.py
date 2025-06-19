@@ -292,3 +292,9 @@ class ActivityResponse:
 @dataclass
 class AuthData:
     init_data_raw: str
+
+@dataclass
+class MessageRequest:
+    user_id: int
+    message: str
+    date: int
