@@ -269,3 +269,17 @@ class ActivityUser(Base):
     )
     activity: orm.Mapped["Activity"] = orm.relationship(back_populates="activity_user")
     user: orm.Mapped["User"] = orm.relationship(back_populates="activity_user")
+
+class UserMessage(Base):
+    __tablename__ = "user_messages"
+
+    id: orm.Mapped[int] = orm.mapped_column(types.Integer, primary_key=True)
+    user_id: orm.Mapped[int] = orm.mapped_column(
+        types.BigInteger, schema.ForeignKey("users.id"), nullable=False
+    )
+    text: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=False)
+    created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(
+        types.DateTime, default=datetime.datetime.utcnow
+    )
+
+    user: orm.Mapped["User"] = orm.relationship("User", backref="messages")

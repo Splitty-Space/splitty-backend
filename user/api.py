@@ -1,5 +1,6 @@
 from typing import Annotated, Optional
 import logging
+import datetime
 
 import jwt
 import os
@@ -29,9 +30,9 @@ from user.dtos import (
     FeedResponse,
     AuthData,
 )
-from user.models import User, friends_association_table, Transaction, Feed
+from user.models import User, friends_association_table, Transaction, Feed, UserMessage
 from utils.generate_referral_code import generate_referral_code
-from utils.send_message import send_message
+
 
 router = fastapi.APIRouter()
 
@@ -439,3 +440,18 @@ def feeds(user_id: int, page: int, limit: int) -> FeedResponse:
             ))
             unique_years.add(feed.created_at.year)
         return FeedResponse(data=feed_infos, meta={'has_more': has_more, 'years': unique_years})
+
+
+@router.post("/send_message")
+def send_message(
+    user_id: int,
+    message: str,
+    date: int,
+):
+    with orm.Session.begin() as session:
+        dt = datetime.datetime.fromtimestamp(date)
+        user_message = UserMessage(user_id=user_id, text=message, created_at=dt)
+        session.add(user_message)
+        session.commit()
+        session.refresh(user_message)
+        return {"status": "success", "message_id": user_message.id}
