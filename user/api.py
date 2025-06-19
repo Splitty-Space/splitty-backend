@@ -449,6 +449,10 @@ def send_message(
     date: int,
 ):
     with orm.Session.begin() as session:
+        print("user_id:", user_id)
+        print("message:", message)
+        print("date:", date)
+
         dt = datetime.datetime.fromtimestamp(date)
         user_message = UserMessage(user_id=user_id, text=message, created_at=dt)
         session.add(user_message)
