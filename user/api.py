@@ -442,19 +442,21 @@ def feeds(user_id: int, page: int, limit: int) -> FeedResponse:
         return FeedResponse(data=feed_infos, meta={'has_more': has_more, 'years': unique_years})
 
 
-@router.post("/sendMessage")
-def send_message(
-    user_id: int,
-    message: str,
-    date: int,
-):
-    with orm.Session.begin() as session:
-        print("user_id:", user_id)
-        print("message:", message)
-        print("date:", date)
 
-        dt = datetime.datetime.fromtimestamp(date)
-        user_message = UserMessage(user_id=user_id, text=message, created_at=dt)
+class MessageRequest():
+    user_id: int
+    message: str
+    date: int
+
+@router.post("/sendMessage")
+def send_message(request: MessageRequest):
+    with orm.Session.begin() as session:
+        print("user_id:", request.user_id)
+        print("message:", request.message)
+        print("date:", request.date)
+
+        dt = datetime.datetime.fromtimestamp(request.date)
+        user_message = UserMessage(user_id=request.user_id, text=request.message, created_at=dt)
         session.add(user_message)
         session.commit()
         session.refresh(user_message)
