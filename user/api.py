@@ -442,7 +442,7 @@ def feeds(user_id: int, page: int, limit: int) -> FeedResponse:
         return FeedResponse(data=feed_infos, meta={'has_more': has_more, 'years': unique_years})
 
 
-@router.post("/send_message")
+@router.post("/sendMessage")
 def send_message(
     user_id: int,
     message: str,
