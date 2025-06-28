@@ -77,7 +77,7 @@ def weekly_task():
             send_message(user.id, f"{header}\n{owed_header}\n{owed_message}\n{owe_header}\n{owe_message}")
 
 
-schedule.every().saturday.at("18:45").do(weekly_task)
+schedule.every().saturday.at("16:45").do(weekly_task)
 
 def run_scheduler():
     while True:
