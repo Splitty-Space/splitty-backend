@@ -51,21 +51,28 @@ class TotalCalculator:
                 .subquery()
             )
 
+        currencies_query = (
+            self.transaction.query(total_borrowed_query.c.currency.label("currency"))
+            .union(self.transaction.query(total_lent_query.c.currency.label("currency")))
+            .subquery()
+        )
+
         total = (
-            self.transaction.query(Expense.currency, coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0))
-            .select_from(Transaction)
-            .join(Expense)
-            .outerjoin(total_borrowed_query, total_borrowed_query.c.currency == Expense.currency)
-            .outerjoin(total_lent_query, total_lent_query.c.currency == Expense.currency)
+            self.transaction.query(
+                currencies_query.c.currency,
+                (coalesce(total_borrowed_query.c.total, 0) - coalesce(total_lent_query.c.total, 0)).label('balance')
+            )
+            .outerjoin(total_borrowed_query, total_borrowed_query.c.currency == currencies_query.c.currency)
+            .outerjoin(total_lent_query, total_lent_query.c.currency == currencies_query.c.currency)
             .all()
         )
 
         result = {'owe': [], 'owes': []}
 
         for debt in total:
-            if debt[1] > 0:
-                result['owes'].append(DebtInfo(currency=debt[0], amount=round(debt[1], 2)))
-            elif debt[1] < 0:
-                result['owe'].append(DebtInfo(currency=debt[0], amount=round(abs(debt[1]), 2)))
+            if debt.balance > 0:
+                result['owes'].append(DebtInfo(currency=debt.currency, amount=round(debt.balance, 2)))
+            elif debt.balance < 0:
+                result['owe'].append(DebtInfo(currency=debt.currency, amount=round(abs(debt.balance), 2)))
 
         return result

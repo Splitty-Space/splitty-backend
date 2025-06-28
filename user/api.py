@@ -160,7 +160,7 @@ def friends(user_id: int, search_name: Optional[str] = None) -> FriendsResponse:
 
 
 @router.get("/friends/{friend_id}")
-def friends(user_id: int, friend_id: int) -> FriendInfo:
+def get_friend_info(user_id: int, friend_id: int) -> FriendInfo:
     with (orm.Session.begin() as transaction):
         user = transaction.query(User).get(user_id)
 

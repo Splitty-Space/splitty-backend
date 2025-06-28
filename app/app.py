@@ -50,23 +50,34 @@ def weekly_task():
 
             if language == "en":
                 header = "🗓️ Weekly report:"
-                owed = "🟩 In total, you are owed:"
-                owe = "🟥 In total you owe:"
+                owed_header = "🟩 In total, you are owed:"
+                owe_header = "🟥 In total you owe:"
             elif language == "ru":
                 header = "🗓️ Еженедельный отчёт:"
-                owed = "🟩 Всего тебе должны:"
-                owe = "🟥 Всего ты должен:"
+                owed_header = "🟩 Всего тебе должны:"
+                owe_header = "🟥 Всего ты должен:"
             elif language == "ua":
                 header = "🗓️ Щотижневий звіт:"
-                owed = "🟩 Усього тобі повинні:"
-                owe = "🟥 Усього ти повинен:"
+                owed_header = "🟩 Усього тобі повинні:"
+                owe_header = "🟥 Усього ти повинен:"
 
-               # response = friends(user_id=user.id)
+            response = friends(user_id=user.id)
 
-            send_message(user.id, f"{header}\n{owed}\n{owe}")
+            owe_list = response.meta['total'].get('owe', [])
+            owed_list = response.meta['total'].get('owed', [])
+
+            owe_message = ""
+            for owe in owe_list:
+                owe_message += str(owe.amount) + " " + owe.currency + "\n"
+
+            owed_message = ""
+            for owed in owed_list:
+                owed_message += str(owed.amount) + " " + owed.currency + "\n"
+
+            send_message(user.id, f"{header}\n{owed_header}\n{owed_message}\n{owe_header}\n{owe_message}")
 
 
-schedule.every().sunday.at("12:00").do(weekly_task)
+schedule.every().saturday.at("19:00").do(weekly_task)
 
 def run_scheduler():
     while True:
