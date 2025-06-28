@@ -52,14 +52,17 @@ def weekly_task():
                 header = "🗓️ Weekly report:"
                 owed_header = "🟩 In total, you are owed:"
                 owe_header = "🟥 In total you owe:"
+                footer = "For more details, check the app 👇"
             elif language == "ru":
                 header = "🗓️ Еженедельный отчёт:"
                 owed_header = "🟩 Всего тебе должны:"
                 owe_header = "🟥 Всего ты должен:"
+                footer = "Более подробно смотри в приложении 👇"
             elif language == "ua":
                 header = "🗓️ Щотижневий звіт:"
                 owed_header = "🟩 Усього тобі повинні:"
                 owe_header = "🟥 Усього ти повинен:"
+                footer = "Детальніше дивись у додатку 👇"
 
             response = friends(user_id=user.id)
 
@@ -80,12 +83,14 @@ def weekly_task():
                 final_message += owed_header + "\n" + owed_message + "\n"
 
             if owe_message:
-                final_message += owe_header + "\n" + owe_message
+                final_message += owe_header + "\n" + owe_message + "\n"
+
+            final_message += footer
 
             send_message(user.id, final_message)
 
 
-schedule.every().saturday.at("17:00").do(weekly_task)
+schedule.every().saturday.at("17:05").do(weekly_task)
 
 
 def run_scheduler():
