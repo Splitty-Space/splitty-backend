@@ -74,16 +74,24 @@ def weekly_task():
             for owed in owed_list:
                 owed_message += str(owed.amount) + " " + owed.currency + "\n"
 
-            send_message(user.id, f"{header}\n{owed_header}\n{owed_message}\n{owe_header}\n{owe_message}")
+            final_message = header + "\n\n"
+
+            if owed_message:
+                final_message += owed_header + "\n" + owed_message + "\n"
+
+            if owe_message:
+                final_message += owe_header + "\n" + owe_message
+
+            send_message(user.id, final_message)
 
 
-schedule.every().saturday.at("16:45").do(weekly_task)
+schedule.every().saturday.at("17:00").do(weekly_task)
+
 
 def run_scheduler():
     while True:
         schedule.run_pending()
         time.sleep(1)
-
 
 
 @app.on_event("startup")
