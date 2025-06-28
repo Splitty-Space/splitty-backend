@@ -90,7 +90,7 @@ def weekly_task():
             send_message(user.id, final_message)
 
 
-schedule.every().saturday.at("17:05").do(weekly_task)
+schedule.every().sunday.at("14:00").do(weekly_task)
 
 
 def run_scheduler():
