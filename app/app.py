@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import FastAPI
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
-
+from app import orm
 from user import api
 from user.routers import groups as group_api
 from user.routers import expenses as expense_api
@@ -13,6 +13,8 @@ from user.routers import user as user_api
 from user.routers import activities as activities_api
 from config import SERVER_PORT
 from utils.send_message import send_message
+from user.models import User
+from user.api import friends
 
 app = FastAPI()
 
@@ -35,21 +37,42 @@ app.add_middleware(
 )
 
 
-def monthly_task():
-    print("monthly_task")
+def weekly_task():
+    print("weekly_task -----------------------------------------------------------")
     today = datetime.now()
-    if today.day == 7:
-        print("***********************************************************************")
-        print("+++++++++++++++++++++++++++++++++++++++++++++++", today.time())
-        send_message(254960854, "Monthly Report")
+    print(today.time())
 
-schedule.every().day.at("19:40").do(monthly_task)
+    with orm.Session.begin() as transaction:
+        users = transaction.query(User).all()
 
+        for user in users:
+            language = user.language
+
+            if language == "en":
+                header = "🗓️ Weekly report:"
+                owed = "🟩 In total, you are owed:"
+                owe = "🟥 In total you owe:"
+            elif language == "ru":
+                header = "🗓️ Еженедельный отчёт:"
+                owed = "🟩 Всего тебе должны:"
+                owe = "🟥 Всего ты должен:"
+            elif language == "ua":
+                header = "🗓️ Щотижневий звіт:"
+                owed = "🟩 Усього тобі повинні:"
+                owe = "🟥 Усього ти повинен:"
+
+               # response = friends(user_id=user.id)
+
+            send_message(user.id, f"{header}\n{owed}\n{owe}")
+
+
+schedule.every().sunday.at("12:00").do(weekly_task)
 
 def run_scheduler():
     while True:
         schedule.run_pending()
         time.sleep(1)
+
 
 
 @app.on_event("startup")

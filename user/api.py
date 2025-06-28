@@ -343,9 +343,19 @@ def add_friend(add_friend: AddFriend):
         first_user.friends.append(second_user)
         second_user.friends.append(first_user)
 
+        fullname = first_user.fullname
+        language = second_user.language
+
         transaction.commit()
 
-        send_message(add_friend.friend_id, "A friend has accepted your invite.")
+        if language == "en":
+            message = "accepted your friend invitation."
+        elif language == "ru":
+            message = "принял ваше приглашение дружбы."
+        elif language == "ua":
+            message = "прийняв ваше запрошення дружби."
+
+        send_message(add_friend.friend_id, f"{fullname} {message}")
 
         return True
 

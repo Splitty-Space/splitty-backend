@@ -3,6 +3,7 @@ from typing import Optional
 
 import fastapi
 from fastapi import status
+from pyexpat.errors import messages
 from sqlalchemy import select, func
 from sqlalchemy.sql.functions import coalesce
 
@@ -125,15 +126,29 @@ def add_expense(create_expense: CreateExpense):
 
         transaction.commit()
 
+    with orm.Session.begin() as transaction:
+        for user_id in create_expense.users:
+            if user_id != create_expense.user_id:
+                user = transaction.query(User).get(user_id)
+                language = user.language
+                if create_expense.payment:
+                    if language == "en":
+                        message = "🤝 Your friend settled up with you. Check it in the app 👇"
+                    elif language == "ru":
+                        message = "🤝 Ваш друг рассчитался с вами. Проверь в приложении 👇"
+                    elif language == "ua":
+                        message = "🤝 Ваш друг розрахувався з вами. Перевір у додатку 👇"
+                else:
+                    if language == "en":
+                        message = "💳 Your friend added a new expense. Check it in the app 👇"
+                    elif language == "ru":
+                        message = "💳 Ваш друг добавил новый расход. Проверь в приложении 👇"
+                    elif language == "ua":
+                        message = "💳 Ваш друг додав нові витрати. Перевір у додатку 👇"
 
-    if create_expense.payment:
-        message = "A new settle up was made. Check it out in app!"
-    else:
-        message = "You got new expense. Check it out in app!"
+                send_message(user_id, message)
 
-    for user_id in create_expense.users:
-        if user_id != create_expense.user_id:
-            send_message(user_id, message)
+        transaction.commit()
 
     return get_expense(create_expense.user_id, expense_id)
 
@@ -194,9 +209,17 @@ def delete_expense(expense_id: int, user_id: int):
         expense.isDeleted = True
 
         for user in expense.expense_users:
-            print("+++++++++++ user.id === ", user.user_id)
             if user_id != user.user_id:
-                send_message(user.user_id, "Expense was deleted. Check it out in app!")
+                language = user.language
+
+                if language == "en":
+                    message = "🗑️ Your friend deleted an expense. Check it in the app 👇"
+                elif language == "ru":
+                    message = "🗑️ Ваш друг удалил расход. Проверь в приложении 👇"
+                elif language == "ua":
+                    message = "🗑️ Ваш друг видалив витрати. Перевір у додатку 👇"
+
+                send_message(user.user_id, message)
 
         transaction.add(expense)
         transaction.commit()
@@ -351,9 +374,22 @@ def edit_expense(expense_id: int, edit_expense: EditExpense):
 
         transaction.commit()
 
-    for user_id in edit_expense.users:
-        if user_id != edit_expense.user_id:
-            send_message(user_id, "Expense was updated. Check it out in app!")
+    with orm.Session.begin() as transaction:
+        for user_id in edit_expense.users:
+            if user_id != edit_expense.user_id:
+                user = transaction.query(User).get(user_id)
+                language = user.language
+
+                if language == "en":
+                    message = "✏️ Your friend edited an expense. Check it in the app 👇"
+                elif language == "ru":
+                    message = "✏️ Ваш друг изменил один из расходов. Проверь в приложении 👇"
+                elif language == "ua":
+                    message = "✏️ Ваш друг змінив одну з витрат. Перевір у додатку 👇"
+
+                send_message(user_id, message)
+
+        transaction.commit()
 
     return True
 
