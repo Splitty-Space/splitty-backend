@@ -61,7 +61,7 @@ async def telegram_auth(auth: AuthData):
     if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid Telegram auth data")
 
-    token = jwt.encode({init_data: auth.init_data_raw }, SECRET_KEY, algorithm='HS256')
+    token = jwt.encode({'init_data': auth.init_data_raw }, SECRET_KEY, algorithm='HS256')
 
     return {token}
 
