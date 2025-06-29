@@ -37,7 +37,7 @@ from utils.generate_referral_code import generate_referral_code
 
 router = fastapi.APIRouter()
 
-BOT_TOKEN = os.getenv('TOKEN', "6933863270:AAHkqpT7_gj5LORo2B2wWY721dvCj_q7x2w")
+BOT_TOKEN = os.getenv('TOKEN', "7255787922:AAGhh5qrqCEFAivFn6Vc1nIMhr80y1x6oe8")
 SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
 
 
