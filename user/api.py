@@ -37,7 +37,7 @@ from utils.generate_referral_code import generate_referral_code
 
 router = fastapi.APIRouter()
 
-BOT_TOKEN = os.getenv('TOKEN', "6933863270:AAHkqpT7_gj5LORo2B2wWY721dvCj_q7x2w")
+BOT_TOKEN = os.getenv('TOKEN', "7255787922:AAGhh5qrqCEFAivFn6Vc1nIMhr80y1x6oe8")
 SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
 
 
@@ -61,9 +61,7 @@ async def telegram_auth(auth: AuthData):
     if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid Telegram auth data")
 
-    token = jwt.encode(init_data, SECRET_KEY, algorithm='HS256')
-
-    print("token = ", token)
+    token = jwt.encode({'init_data': auth.init_data_raw }, SECRET_KEY, algorithm='HS256')
 
     return {token}
 
