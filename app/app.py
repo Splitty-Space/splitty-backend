@@ -53,16 +53,19 @@ def weekly_task():
                 owed_header = "🟩 In total, you are owed:"
                 owe_header = "🟥 In total you owe:"
                 footer = "For more details, check the app 👇"
+                noDebt = "You have no debts and no one owes you anything 🙌"
             elif language == "ru":
                 header = "🗓️ Еженедельный отчёт:"
                 owed_header = "🟩 Всего тебе должны:"
                 owe_header = "🟥 Всего ты должен:"
                 footer = "Более подробно смотри в приложении 👇"
+                noDebt = "У тебя нет долгов и тебе никто не должен 🙌"
             elif language == "ua":
                 header = "🗓️ Щотижневий звіт:"
                 owed_header = "🟩 Усього тобі повинні:"
                 owe_header = "🟥 Усього ти повинен:"
                 footer = "Детальніше дивись у додатку 👇"
+                noDebt = "У тебе немає боргів і тобі ніхто не винен 🙌"
 
             response = friends(user_id=user.id)
 
@@ -85,7 +88,10 @@ def weekly_task():
             if owe_message:
                 final_message += owe_header + "\n" + owe_message + "\n"
 
-            final_message += footer
+            if owed_message or owe_message:
+                final_message += footer
+            else:
+                final_message = header + noDebt
 
             send_message(user.id, final_message)
 
