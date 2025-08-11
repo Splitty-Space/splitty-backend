@@ -1,6 +1,7 @@
 from typing import Annotated, Optional
 import logging
 import datetime
+from decimal import Decimal
 
 import jwt
 import os
@@ -12,6 +13,7 @@ from sqlalchemy import select, sql, func, asc, case
 from sqlalchemy.orm import load_only
 from sqlalchemy.sql.functions import coalesce
 from init_data_py import InitData
+from utils.send_message import send_message
 
 from app import orm
 from app.query.friend_total_calculator import FriendTotalCalculator
@@ -29,9 +31,10 @@ from user.dtos import (
     DebtInfo,
     FeedResponse,
     AuthData,
-    MessageRequest,
+    MessageRequest, CreateExpense, CreateExpenseUser,
 )
 from user.models import User, friends_association_table, Transaction, Feed, UserMessage
+from user.routers.expenses import add_expense
 from utils.generate_referral_code import generate_referral_code
 
 
@@ -344,19 +347,69 @@ def add_friend(add_friend: AddFriend):
         fullname = first_user.fullname
         language = second_user.language
 
+        create_tutorial_expenses_for_test_user(add_friend, language)
+
         transaction.commit()
 
-        if language == "en":
-            message = "accepted your friend invitation."
-        elif language == "ru":
-            message = "принял ваше приглашение дружбы."
-        elif language == "ua":
-            message = "прийняв ваше запрошення дружби."
-
-        send_message(add_friend.friend_id, f"{fullname} {message}")
+        send_friend_invitation_message(fullname, language)
 
         return True
 
+def create_tutorial_expenses_for_test_user(add_friend, language):
+    TUTORIAL_USER_ID = 7013457029
+    if add_friend.friend_id != TUTORIAL_USER_ID:
+        return
+
+    if language == "en":
+        description = "Dinner at the restaurant"
+        description2 = "Picnic in the park"
+    elif language == "ru":
+        description = "Ужин в ресторане"
+        description2 = "Пикник в парке"
+    elif language == "ua":
+        description = "Вечеря у ресторані"
+        description2 = "Пікнік у парку"
+    else:
+        description = "Dinner at the restaurant"
+        description2 = "Picnic in the park"
+
+    temp_expense = CreateExpense(
+        payers=[CreateExpenseUser(user_id=add_friend.user_id, amount=100), CreateExpenseUser(user_id=add_friend.friend_id, amount=0)],
+        debtors=[CreateExpenseUser(user_id=add_friend.user_id, amount=50), CreateExpenseUser(user_id=add_friend.friend_id, amount=50)],
+        users=[add_friend.user_id, add_friend.friend_id],
+        user_id=add_friend.user_id,
+        amount=Decimal(100),
+        payment=False,
+        currency="USD",
+        date=datetime.datetime.utcnow(),
+        description=description,
+        group_id=None
+    )
+    add_expense(temp_expense)
+
+    temp_expense2 = CreateExpense(
+        payers=[CreateExpenseUser(user_id=add_friend.user_id, amount=322), CreateExpenseUser(user_id=add_friend.friend_id, amount=0)],
+        debtors=[CreateExpenseUser(user_id=add_friend.user_id, amount=161), CreateExpenseUser(user_id=add_friend.friend_id, amount=161)],
+        users=[add_friend.user_id, add_friend.friend_id],
+        user_id=add_friend.user_id,
+        amount=Decimal(100),
+        payment=False,
+        currency="EUR",
+        date=datetime.datetime.utcnow(),
+        description=description2,
+        group_id=None
+    )
+    add_expense(temp_expense2)
+
+def send_friend_invitation_message(fullname, language):
+    if language == "en":
+        message = "accepted your friend invitation."
+    elif language == "ru":
+        message = "принял ваше приглашение дружбы."
+    elif language == "ua":
+        message = "прийняв ваше запрошення дружби."
+
+    send_message(add_friend.friend_id, f"{fullname} {message}")
 
 @router.post("/deleteFriend")
 def delete_friend(delete_friend: DeleteFriend):
@@ -451,7 +504,7 @@ def feeds(user_id: int, page: int, limit: int) -> FeedResponse:
         return FeedResponse(data=feed_infos, meta={'has_more': has_more, 'years': unique_years})
 
 @router.post("/sendMessage")
-def send_message(request: MessageRequest):
+def post_message(request: MessageRequest):
     with orm.Session.begin() as session:
         print("user_id:", request.user_id)
         print("message:", request.message)
