@@ -37,7 +37,6 @@ from user.models import User, friends_association_table, Transaction, Feed, User
 from user.routers.expenses import add_expense
 from utils.generate_referral_code import generate_referral_code
 
-
 router = fastapi.APIRouter()
 
 BOT_TOKEN = os.getenv('TOKEN', "7255787922:AAGhh5qrqCEFAivFn6Vc1nIMhr80y1x6oe8")
@@ -45,7 +44,7 @@ SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
 
 
 @router.post("/auth")
-async def telegram_auth(auth: AuthData):
+async def telegram_auth(auth: AuthData) -> dict[str, str]:
     print("auth = ", auth.init_data_raw)
 
     init_data = InitData.parse(auth.init_data_raw)
@@ -64,9 +63,9 @@ async def telegram_auth(auth: AuthData):
     if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid Telegram auth data")
 
-    token = jwt.encode({'init_data': auth.init_data_raw }, SECRET_KEY, algorithm='HS256')
+    token = jwt.encode({'init_data': auth.init_data_raw}, SECRET_KEY, algorithm='HS256')
 
-    return {token}
+    return {"token": token}
 
 
 @router.get("/friends")
@@ -355,6 +354,7 @@ def add_friend(add_friend: AddFriend):
 
         return True
 
+
 def create_tutorial_expenses_for_test_user(add_friend, language):
     TUTORIAL_USER_ID = 7013457029
     if add_friend.friend_id != TUTORIAL_USER_ID:
@@ -374,8 +374,10 @@ def create_tutorial_expenses_for_test_user(add_friend, language):
         description2 = "Picnic in the park"
 
     temp_expense = CreateExpense(
-        payers=[CreateExpenseUser(user_id=add_friend.user_id, amount=100), CreateExpenseUser(user_id=add_friend.friend_id, amount=0)],
-        debtors=[CreateExpenseUser(user_id=add_friend.user_id, amount=50), CreateExpenseUser(user_id=add_friend.friend_id, amount=50)],
+        payers=[CreateExpenseUser(user_id=add_friend.user_id, amount=100),
+                CreateExpenseUser(user_id=add_friend.friend_id, amount=0)],
+        debtors=[CreateExpenseUser(user_id=add_friend.user_id, amount=50),
+                 CreateExpenseUser(user_id=add_friend.friend_id, amount=50)],
         users=[add_friend.user_id, add_friend.friend_id],
         user_id=add_friend.user_id,
         amount=Decimal(100),
@@ -388,8 +390,10 @@ def create_tutorial_expenses_for_test_user(add_friend, language):
     add_expense(temp_expense)
 
     temp_expense2 = CreateExpense(
-        payers=[CreateExpenseUser(user_id=add_friend.user_id, amount=322), CreateExpenseUser(user_id=add_friend.friend_id, amount=0)],
-        debtors=[CreateExpenseUser(user_id=add_friend.user_id, amount=161), CreateExpenseUser(user_id=add_friend.friend_id, amount=161)],
+        payers=[CreateExpenseUser(user_id=add_friend.user_id, amount=322),
+                CreateExpenseUser(user_id=add_friend.friend_id, amount=0)],
+        debtors=[CreateExpenseUser(user_id=add_friend.user_id, amount=161),
+                 CreateExpenseUser(user_id=add_friend.friend_id, amount=161)],
         users=[add_friend.user_id, add_friend.friend_id],
         user_id=add_friend.user_id,
         amount=Decimal(100),
@@ -401,6 +405,7 @@ def create_tutorial_expenses_for_test_user(add_friend, language):
     )
     add_expense(temp_expense2)
 
+
 def send_friend_invitation_message(fullname, language):
     if language == "en":
         message = "accepted your friend invitation."
@@ -410,6 +415,7 @@ def send_friend_invitation_message(fullname, language):
         message = "прийняв ваше запрошення дружби."
 
     send_message(add_friend.friend_id, f"{fullname} {message}")
+
 
 @router.post("/deleteFriend")
 def delete_friend(delete_friend: DeleteFriend):
@@ -502,6 +508,7 @@ def feeds(user_id: int, page: int, limit: int) -> FeedResponse:
             ))
             unique_years.add(feed.created_at.year)
         return FeedResponse(data=feed_infos, meta={'has_more': has_more, 'years': unique_years})
+
 
 @router.post("/sendMessage")
 def post_message(request: MessageRequest):
