@@ -2,7 +2,6 @@ from typing import Annotated, Optional
 import logging
 import datetime
 from decimal import Decimal
-
 import jwt
 import os
 import fastapi
@@ -14,7 +13,6 @@ from sqlalchemy.orm import load_only
 from sqlalchemy.sql.functions import coalesce
 from init_data_py import InitData
 from utils.send_message import send_message
-
 from app import orm
 from app.query.friend_total_calculator import FriendTotalCalculator
 from app.query.total_calculator import TotalCalculator
@@ -30,8 +28,9 @@ from user.dtos import (
     FriendsResponse,
     DebtInfo,
     FeedResponse,
-    AuthData,
-    MessageRequest, CreateExpense, CreateExpenseUser,
+    MessageRequest,
+    CreateExpense,
+    CreateExpenseUser,
 )
 from user.models import User, friends_association_table, Transaction, Feed, UserMessage
 from user.routers.expenses import add_expense
@@ -39,6 +38,7 @@ from utils.generate_referral_code import generate_referral_code
 from user.dependencies import verify_token
 
 router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_token)])
+
 
 @router.get("/friends")
 def friends(user_id: int, search_name: Optional[str] = None) -> FriendsResponse:
@@ -460,6 +460,7 @@ def register_user(create_user: CreateUser):
             add_friend(AddFriend(create_user.user_id, friend_id=refer_id))
 
         return True
+
 
 # TODO not used remove?
 @router.get("/feeds")

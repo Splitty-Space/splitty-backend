@@ -1,13 +1,11 @@
 import fastapi
 from fastapi import status, Response
-
 from app import orm
-from user.dtos import (
-    UpdateSettings, UserInfo,
-)
+from user.dtos import (UpdateSettings, UserInfo)
 from user.models import User
+from user.dependencies import verify_token
 
-router = fastapi.APIRouter()
+router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_token)])
 
 
 @router.get("/me")

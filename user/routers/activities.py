@@ -1,11 +1,11 @@
 import fastapi
 from fastapi import status
-
 from app import orm
 from user.dtos import (ActivityResponse, ActivityDTO, UserInfo, ExpenseActivityInfo, ExpenseUserInfo)
 from user.models import User, Activity, ActivityUser, Expense
+from user.dependencies import verify_token
 
-router = fastapi.APIRouter()
+router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_token)])
 
 
 @router.get("/activities")

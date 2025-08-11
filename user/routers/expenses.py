@@ -1,12 +1,9 @@
 import datetime
 from typing import Optional
-
 import fastapi
 from fastapi import status
-from pyexpat.errors import messages
 from sqlalchemy import select, func
 from sqlalchemy.sql.functions import coalesce
-
 from app import orm
 from app.services.build_transaction_info import BuildTransactionInfo
 from app.services.feed_service import FeedService
@@ -22,8 +19,9 @@ from utils.calculate_user_balance import calculate_user_balances
 from utils.deep_dict_diff import deep_dict_diff
 from utils.make_payment_graph import make_payment_graph
 from utils.send_message import send_message
+from user.dependencies import verify_token
 
-router = fastapi.APIRouter()
+router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_token)])
 
 
 @router.post("/expenses")

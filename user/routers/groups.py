@@ -1,23 +1,29 @@
 import fastapi
 from fastapi import status
-from sqlalchemy import select, func, case, asc, text
+from sqlalchemy import select, func, case, asc
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.functions import coalesce
-
 from app import orm
 from app.query.group_total_calculator import GroupTotalCalculator
 from app.query.total_calculator import TotalCalculator
-from app.services.build_transaction_info import BuildTransactionInfo
 from user.dtos import (
     FriendShortInfo,
     UserInfo,
-    ExpenseShortInfo,
-    TransactionInfo, GroupShortInfo, AddGroup, GroupInfo, EditGroup, GroupUserInfo, DebtInfo, GroupResponse, )
+    TransactionInfo,
+    GroupShortInfo,
+    AddGroup,
+    GroupInfo,
+    EditGroup,
+    GroupUserInfo,
+    DebtInfo,
+    GroupResponse
+)
 from user.models import User, Expense, Transaction, Group, user_group_table
 from utils.entities.UserBalance import UserBalance
 from utils.make_payment_graph import make_payment_graph
+from user.dependencies import verify_token
 
-router = fastapi.APIRouter()
+router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_token)])
 
 
 @router.get("/groups")
