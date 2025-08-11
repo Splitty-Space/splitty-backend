@@ -36,37 +36,9 @@ from user.dtos import (
 from user.models import User, friends_association_table, Transaction, Feed, UserMessage
 from user.routers.expenses import add_expense
 from utils.generate_referral_code import generate_referral_code
+from user.dependencies import verify_token
 
-router = fastapi.APIRouter()
-
-BOT_TOKEN = os.getenv('TOKEN', "7255787922:AAGhh5qrqCEFAivFn6Vc1nIMhr80y1x6oe8")
-SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
-
-
-@router.post("/auth")
-async def telegram_auth(auth: AuthData) -> dict[str, str]:
-    print("auth = ", auth.init_data_raw)
-
-    init_data = InitData.parse(auth.init_data_raw)
-
-    print("init_data = ", init_data)
-
-    print("BOT_TOKEN = ", BOT_TOKEN)
-
-    is_valid = init_data.validate(
-        bot_token=BOT_TOKEN,
-        lifetime=3600,
-    )
-
-    print("is_valid = ", is_valid)
-
-    if not is_valid:
-        raise HTTPException(status_code=401, detail="Invalid Telegram auth data")
-
-    token = jwt.encode({'init_data': auth.init_data_raw}, SECRET_KEY, algorithm='HS256')
-
-    return {"token": token}
-
+router = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_token)])
 
 @router.get("/friends")
 def friends(user_id: int, search_name: Optional[str] = None) -> FriendsResponse:
@@ -434,6 +406,7 @@ def delete_friend(delete_friend: DeleteFriend):
         return True
 
 
+# TODO not used remove?
 @router.post("/registerUser")
 def register_user(create_user: CreateUser):
     with orm.Session.begin() as transaction:
@@ -488,7 +461,7 @@ def register_user(create_user: CreateUser):
 
         return True
 
-
+# TODO not used remove?
 @router.get("/feeds")
 def feeds(user_id: int, page: int, limit: int) -> FeedResponse:
     with orm.Session.begin() as transaction:

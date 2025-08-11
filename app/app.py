@@ -7,6 +7,7 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from app import orm
 from user import api
+from user.routers import auth as auth_api
 from user.routers import groups as group_api
 from user.routers import expenses as expense_api
 from user.routers import user as user_api
@@ -19,6 +20,7 @@ from user.api import friends
 app = FastAPI()
 
 app.include_router(api.router)
+app.include_router(auth_api.router)
 app.include_router(group_api.router)
 app.include_router(expense_api.router)
 app.include_router(user_api.router)
