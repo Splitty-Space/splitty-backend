@@ -53,15 +53,6 @@ class EditExpense:
 
 
 @dataclass
-class UserInfo:
-    id: int
-    name: str
-    photo_url: str
-    username: str
-    type: Optional[str] = "user"
-
-
-@dataclass
 class DebtInfo:
     currency: str
     amount: Decimal
@@ -87,6 +78,7 @@ class UserInfo:
     referral_code: Optional[str] = None
     default_currency: Optional[str] = None
     language: Optional[str] = None
+    isGuideShown: Optional[bool] = None
 
 
 @dataclass
@@ -223,6 +215,7 @@ class UpdateSettings:
     user_id: int
     default_currency: Optional[str] = None
     language: Optional[str] = None
+    isGuideShown: Optional[bool] = None
 
 
 @dataclass

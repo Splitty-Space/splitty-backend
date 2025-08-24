@@ -34,6 +34,7 @@ class User(Base):
     photo_url: orm.Mapped[str] = orm.mapped_column(types.Text, nullable=True)
     photo = Column(LargeBinary, nullable=True)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(types.DateTime, default=datetime.datetime.utcnow)
+    isGuideShown: orm.Mapped[bool] = orm.mapped_column(types.Boolean, default=sql.false())
 
     referred_by: orm.Mapped[Optional[int]] = orm.mapped_column(
         types.BigInteger, ForeignKey('users.id'), nullable=True

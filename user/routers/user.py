@@ -24,6 +24,7 @@ def get_me(user_id: int) -> UserInfo:
             default_currency=user.default_currency,
             language=user.language,
             referral_code=user.referral_code,
+            isGuideShown=user.isGuideShown,
         )
 
 
@@ -40,6 +41,9 @@ def update_settings(update_settings: UpdateSettings):
 
         if update_settings.language:
             user.language = update_settings.language
+
+        if update_settings.isGuideShown:
+            user.isGuideShown = update_settings.isGuideShown
 
         transaction.commit()
 
