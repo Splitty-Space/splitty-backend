@@ -10,10 +10,14 @@ router = fastapi.APIRouter()
 
 BOT_TOKEN = os.getenv('TOKEN', "7255787922:AAGhh5qrqCEFAivFn6Vc1nIMhr80y1x6oe8")
 SECRET_KEY = hashlib.sha256(BOT_TOKEN.encode()).digest()
-
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 @router.post("/auth")
 async def telegram_auth(auth: AuthData) -> dict[str, str]:
+    if DEBUG:
+        # Skip auth in debug mode
+        return {"token": "debug-token"}
+
     print("auth = ", auth.init_data_raw)
 
     init_data = InitData.parse(auth.init_data_raw)
