@@ -50,6 +50,8 @@ def weekly_task():
         for user in users:
             language = user.language
 
+            print("user.username = ", user.username)
+
             if language == "en":
                 header = "🗓️ Weekly report:"
                 owed_header = "🟩 In total, you are owed:"
@@ -76,13 +78,22 @@ def weekly_task():
 
             owe_message = ""
             for owe in owe_list:
+                print("owe.amount = ", owe.amount)
+                print("owe.currency = ", owe.currency)
                 owe_message += str(owe.amount) + " " + owe.currency + "\n"
+                print("owe_message = ", owe_message)
 
             owed_message = ""
             for owed in owed_list:
+                print("owed.amount == ", owed.amount)
+                print("owed.currency == ", owed.currency)
                 owed_message += str(owed.amount) + " " + owed.currency + "\n"
+                print("owed_message == ", owed_message)
 
             final_message = header + "\n\n"
+
+            print("owed_message === ", owed_message)
+            print("owe_message === ", owe_message)
 
             if owed_message:
                 final_message += owed_header + "\n" + owed_message + "\n"
@@ -98,7 +109,7 @@ def weekly_task():
             send_message(user.id, final_message)
 
 
-schedule.every().sunday.at("14:00").do(weekly_task)
+schedule.every().saturday.at("15:15").do(weekly_task)
 
 
 def run_scheduler():
