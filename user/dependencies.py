@@ -16,6 +16,5 @@ def verify_token(authorization: str = Header(...)):
     token = authorization.split(" ")[1]
     try:
         jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-        print("verify_token = ", token)
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")

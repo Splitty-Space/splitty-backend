@@ -101,6 +101,8 @@ def weekly_task():
             if owe_message:
                 final_message += owe_header + "\n" + owe_message + "\n"
 
+            print("final_message = ", final_message)
+
             if owed_message or owe_message:
                 final_message += footer
             else:
@@ -111,7 +113,7 @@ def weekly_task():
             send_message(user.id, final_message)
 
 
-schedule.every().saturday.at("14:40").do(weekly_task)
+schedule.every().saturday.at("14:45").do(weekly_task)
 
 
 def run_scheduler():
