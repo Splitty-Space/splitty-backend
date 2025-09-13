@@ -106,10 +106,12 @@ def weekly_task():
             else:
                 final_message = header + noDebt
 
+            print("final_message === ", final_message)
+
             send_message(user.id, final_message)
 
 
-schedule.every().saturday.at("15:15").do(weekly_task)
+schedule.every().saturday.at("14:40").do(weekly_task)
 
 
 def run_scheduler():
